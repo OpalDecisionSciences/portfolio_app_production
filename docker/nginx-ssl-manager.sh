@@ -106,26 +106,19 @@ reload_nginx() {
 initialize_nginx() {
     print_status "Initializing nginx with certificate-aware configuration"
     
+    # Stop any existing nginx processes first
+    pkill nginx 2>/dev/null || true
+    sleep 1
+    
     if check_ssl_certificates; then
         switch_to_https
     else
         switch_to_http
     fi
     
-    # Start nginx if not running
-    if ! pgrep nginx >/dev/null; then
-        print_status "Starting nginx"
-        nginx -g "daemon off;" &
-        NGINX_PID=$!
-        sleep 2
-        
-        if pgrep nginx >/dev/null; then
-            print_status "Nginx started successfully"
-        else
-            print_error "Failed to start nginx"
-            return 1
-        fi
-    fi
+    # Start nginx in foreground mode (daemon off)
+    print_status "Starting nginx in foreground mode"
+    exec nginx -g "daemon off;"
 }
 
 # Handle certificate acquisition workflow
