@@ -1323,7 +1323,11 @@ def get_weather_data(lat, lng, restaurant_id=None):
         if cached_data:
             import json
             logger.info(f"Weather cache hit for {cache_key}")
-            return json.loads(cached_data.decode('utf-8'))
+            cached_weather = json.loads(cached_data.decode('utf-8'))
+            # Mark as cached and update timestamp
+            cached_weather['cached'] = True
+            cached_weather['cache_hit_timestamp'] = datetime.now().isoformat()
+            return cached_weather
         
     except Exception as redis_error:
         logger.warning(f"Redis connection failed for weather cache: {redis_error}")

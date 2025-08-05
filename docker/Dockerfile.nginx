@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     netcat-openbsd \
     openssl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy nginx configurations (HTTP and HTTPS modes)
