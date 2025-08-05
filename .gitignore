@@ -12,3 +12,7 @@
 # Django generated static files (collected at runtime)
 # Source static files (django_app/src/static/) stay in git
 django_app/src/staticfiles/
+
+# Production logs (runtime generated)
+production_logs/
+*.log
