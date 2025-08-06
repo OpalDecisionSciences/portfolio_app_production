@@ -207,7 +207,7 @@ services:
     environment:
       - DOMAIN_NAME=${DOMAIN_NAME:-opaldecisionsciences.com}
       - ACME_EMAIL=${ACME_EMAIL:-opaldecisionsciences@gmail.com}
-    command: certonly --webroot --webroot-path=/var/www/certbot --email ${ACME_EMAIL:-opaldecisionsciences@gmail.com} --agree-tos --no-eff-email --force-renewal -d ${DOMAIN_NAME:-opaldecisionsciences.com} -d www.${DOMAIN_NAME:-opaldecisionsciences.com}
+    command: certonly --webroot --webroot-path=/var/www/certbot --email ${ACME_EMAIL:-opaldecisionsciences@gmail.com} --agree-tos --no-eff-email --force-renewal -d opaldecisionsciences.com -d www.opaldecisionsciences.com
     profiles:
       - ssl-setup
       
