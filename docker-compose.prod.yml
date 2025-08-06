@@ -186,7 +186,7 @@ services:
       - "443:443"
     volumes:
       - ./ssl:/etc/letsencrypt:ro
-      - ./ssl-challenges:/var/www/certbot:ro
+      - ./ssl-challenges:/var/www/certbot
       - ./production_logs/nginx:/var/log/nginx
     networks:
       - portfolio_network_prod
