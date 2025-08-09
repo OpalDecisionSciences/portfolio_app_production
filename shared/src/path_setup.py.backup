@@ -1,0 +1,170 @@
+"""
+Centralized Python path setup for the entire portfolio application.
+This module provides consistent path configuration across all components.
+"""
+import sys
+import os
+from pathlib import Path
+from typing import List
+
+# Cache to prevent duplicate path additions
+_paths_added = set()
+
+def get_project_root() -> Path:
+    """Get the project root directory (portfolio_app_production)."""
+    current = Path(__file__).resolve()
+    while current.name != 'portfolio_app_production' and current != current.parent:
+        current = current.parent
+    
+    if current.name != 'portfolio_app_production':
+        # Fallback: assume we're in shared/src and go up 2 levels
+        current = Path(__file__).resolve().parent.parent.parent
+    
+    return current
+
+def setup_all_paths(verbose: bool = False) -> List[str]:
+    """
+    Set up all necessary Python paths for the portfolio application.
+    
+    Args:
+        verbose: If True, print added paths
+        
+    Returns:
+        List of paths that were added
+    """
+    project_root = get_project_root()
+    added_paths = []
+    
+    # Define all paths that should be in sys.path
+    paths_to_add = [
+        project_root / 'shared' / 'src',
+        project_root / 'django_app' / 'src', 
+        project_root / 'data_pipeline' / 'src',
+        project_root / 'rag_service' / 'src',
+        project_root / 'shared' / 'token_management',
+        project_root / 'tests',
+    ]
+    
+    for path in paths_to_add:
+        path_str = str(path)
+        
+        # Only add if path exists and hasn't been added before
+        if path.exists() and path_str not in _paths_added:
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+                added_paths.append(path_str)
+                if verbose:
+                    print(f"Added to Python path: {path_str}")
+            
+            _paths_added.add(path_str)
+    
+    return added_paths
+
+def setup_django_paths(verbose: bool = False) -> List[str]:
+    """
+    Set up paths specifically for Django components.
+    Use this in Django-specific modules.
+    """
+    project_root = get_project_root()
+    added_paths = []
+    
+    paths_to_add = [
+        project_root / 'shared' / 'src',
+        project_root / 'django_app' / 'src',
+    ]
+    
+    for path in paths_to_add:
+        path_str = str(path)
+        if path.exists() and path_str not in _paths_added:
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+                added_paths.append(path_str)
+                if verbose:
+                    print(f"Added Django path: {path_str}")
+            
+            _paths_added.add(path_str)
+    
+    return added_paths
+
+def setup_data_pipeline_paths(verbose: bool = False) -> List[str]:
+    """
+    Set up paths for data pipeline scripts.
+    """
+    project_root = get_project_root()
+    added_paths = []
+    
+    paths_to_add = [
+        project_root / 'shared' / 'src',
+        project_root / 'django_app' / 'src',
+        project_root / 'data_pipeline' / 'src',
+    ]
+    
+    for path in paths_to_add:
+        path_str = str(path)
+        if path.exists() and path_str not in _paths_added:
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+                added_paths.append(path_str)
+                if verbose:
+                    print(f"Added data pipeline path: {path_str}")
+            
+            _paths_added.add(path_str)
+    
+    return added_paths
+
+def setup_rag_service_paths(verbose: bool = False) -> List[str]:
+    """
+    Set up paths for RAG service components.
+    """
+    project_root = get_project_root()
+    added_paths = []
+    
+    paths_to_add = [
+        project_root / 'shared' / 'src',
+        project_root / 'rag_service' / 'src',
+    ]
+    
+    for path in paths_to_add:
+        path_str = str(path)
+        if path.exists() and path_str not in _paths_added:
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+                added_paths.append(path_str)
+                if verbose:
+                    print(f"Added RAG service path: {path_str}")
+            
+            _paths_added.add(path_str)
+    
+    return added_paths
+
+def setup_test_paths(verbose: bool = False) -> List[str]:
+    """
+    Set up paths for test scripts.
+    """
+    project_root = get_project_root()
+    added_paths = []
+    
+    paths_to_add = [
+        project_root / 'shared' / 'src',
+        project_root / 'django_app' / 'src',
+        project_root / 'data_pipeline' / 'src',
+        project_root / 'rag_service' / 'src',
+        project_root / 'tests',
+    ]
+    
+    for path in paths_to_add:
+        path_str = str(path)
+        if path.exists() and path_str not in _paths_added:
+            if path_str not in sys.path:
+                sys.path.insert(0, path_str)
+                added_paths.append(path_str)
+                if verbose:
+                    print(f"Added test path: {path_str}")
+            
+            _paths_added.add(path_str)
+    
+    return added_paths
+
+# Auto-setup when imported (can be disabled with DISABLE_AUTO_PATH_SETUP env var)
+if not os.getenv('DISABLE_AUTO_PATH_SETUP'):
+    setup_all_paths()
