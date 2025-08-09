@@ -1,0 +1,29 @@
+Happy Birthday, {{ first_name }}!
+
+Wishing you a wonderful {{ month_name }} birthday filled with delicious meals and memorable dining experiences!
+
+As a special birthday treat, we've curated some top restaurant recommendations {% if has_location %}in {{ location_display }}{% else %}just for you{% endif %}.
+
+{% if top_restaurants %}
+TOP RESTAURANT RECOMMENDATIONS:
+{% for restaurant in top_restaurants %}
+• {{ restaurant.name }}{% if restaurant.michelin_stars > 0 %} ({{ restaurant.michelin_stars }} Michelin Star{{ restaurant.michelin_stars|pluralize }}){% endif %}
+  Location: {{ restaurant.city }}, {{ restaurant.country }}
+  {% if restaurant.cuisine_type %}Cuisine: {{ restaurant.cuisine_type }}{% endif %}
+  {% if restaurant.price_range %}Price Range: {{ restaurant.price_range }}{% endif %}
+
+{% endfor %}
+Explore more restaurants at: https://opaldecisionsciences.com/
+{% endif %}
+
+May your special day be filled with joy, great food, and wonderful company!
+
+Best wishes,
+The Opal Decision Sciences Team
+
+---
+You're receiving this email because you subscribed to our newsletter and shared your birth month with us.
+Update your preferences: https://opaldecisionsciences.com/accounts/profile/
+Unsubscribe: https://opaldecisionsciences.com/accounts/unsubscribe/
+
+© {% now "Y" %} Opal Decision Sciences. All rights reserved.

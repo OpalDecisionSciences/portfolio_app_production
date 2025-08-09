@@ -212,7 +212,7 @@ def get_security_middleware() -> list:
     Returns:
         List of middleware classes in correct order
     """
-    return [
+    middleware = [
         'django.middleware.security.SecurityMiddleware',
         'django.contrib.sessions.middleware.SessionMiddleware',
         'corsheaders.middleware.CorsMiddleware',
@@ -221,7 +221,14 @@ def get_security_middleware() -> list:
         'django.contrib.auth.middleware.AuthenticationMiddleware',
         'django.contrib.messages.middleware.MessageMiddleware',
         'django.middleware.clickjacking.XFrameOptionsMiddleware',
+        'portfolio_project.middleware.SecurityHeadersMiddleware',
     ]
+    
+    # Add admin IP whitelist middleware if configured
+    if get_env_list('ADMIN_ALLOWED_IPS'):
+        middleware.insert(0, 'portfolio_project.middleware.AdminIPWhitelistMiddleware')
+    
+    return middleware
 
 
 def get_production_security_settings() -> dict:

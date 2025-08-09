@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from decouple import config
 import warnings
 
+# Set up Python paths for shared modules
+from . import path_setup
+
 # Suppress common setuptools/distutils compatibility warnings
 warnings.filterwarnings("ignore", message=".*Setuptools is replacing distutils.*")
 warnings.filterwarnings("ignore", message=".*Distutils was imported before Setuptools.*")
@@ -13,6 +16,7 @@ warnings.filterwarnings("ignore", message=".*Distutils was imported before Setup
 from .security import (
     get_env_variable, 
     get_env_bool, 
+    get_env_list,
     get_allowed_hosts,
     get_cors_allowed_origins,
     get_database_config,
@@ -44,6 +48,11 @@ SECRET_KEY = get_env_variable('SECRET_KEY')
 DEBUG = get_env_bool('DEBUG', False)
 
 ALLOWED_HOSTS = get_allowed_hosts()
+
+# Admin Panel IP Whitelist Configuration
+# Comma-separated list of IPs or CIDR ranges allowed to access /admin/
+# Examples: "192.168.1.1,10.0.0.0/24,2001:db8::/32"
+ADMIN_ALLOWED_IPS = get_env_list('ADMIN_ALLOWED_IPS', [])
 
 # Application definition
 INSTALLED_APPS = [

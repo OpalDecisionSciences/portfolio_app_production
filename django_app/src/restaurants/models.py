@@ -1154,6 +1154,200 @@ class ImageScrapingJob(BaseModel):
         return (self.images_categorized / self.images_downloaded) * 100
 
 
+class RestaurantRecommendation(models.Model):
+    """
+    System-generated TOP restaurant recommendations for homepage and featured sections.
+    This is different from user-specific personalized recommendations.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    restaurant = models.OneToOneField(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name='recommendation_data'
+    )
+    
+    # Recommendation metrics
+    recommendation_score = models.FloatField(default=0.0, help_text='Combined recommendation score (0.0-1.0)')
+    click_through_rate = models.FloatField(default=0.0, help_text='Percentage of users who clicked')
+    user_rating_average = models.FloatField(default=0.0, help_text='Average user rating')
+    total_favorites_count = models.IntegerField(default=0, help_text='Total favorites count')
+    total_views_count = models.IntegerField(default=0, help_text='Total view count')
+    michelin_boost = models.FloatField(default=0.0, help_text='Boost for Michelin stars')
+    
+    # Algorithm metadata
+    algorithm_version = models.CharField(max_length=20, default='v1.0')
+    last_calculated = models.DateTimeField(auto_now=True)
+    
+    # Regional data for location-based recommendations
+    city = models.CharField(max_length=100, blank=True, db_index=True)
+    state = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True, db_index=True)
+    
+    # Display configuration
+    is_featured_homepage = models.BooleanField(default=False, db_index=True, help_text='Show on homepage')
+    homepage_order = models.IntegerField(default=999, help_text='Display order (lower = higher)')
+    is_regional_featured = models.BooleanField(default=False)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-recommendation_score', 'homepage_order']
+        indexes = [
+            models.Index(fields=['is_featured_homepage', '-recommendation_score'], name='featured_homepage_idx'),
+            models.Index(fields=['country', 'city', '-recommendation_score'], name='regional_recommendations_idx'),
+            models.Index(fields=['algorithm_version', 'last_calculated'], name='algorithm_version_idx'),
+        ]
+    
+    def __str__(self):
+        return f"{self.restaurant.name} - Score: {self.recommendation_score:.2f}"
+    
+    def calculate_score(self):
+        """
+        Calculate combined recommendation score using weighted algorithm.
+        This is the main algorithm for determining top restaurants.
+        """
+        # Normalize metrics
+        rating_normalized = (self.user_rating_average / 5.0) if self.user_rating_average else 0
+        ctr_normalized = min(self.click_through_rate, 1.0)  # Cap at 100%
+        favorites_normalized = min(self.total_favorites_count / 1000, 1.0)  # Normalize to 1000 favorites
+        views_normalized = min(self.total_views_count / 10000, 1.0)  # Normalize to 10000 views
+        
+        # Calculate weighted score
+        self.recommendation_score = (
+            rating_normalized * 0.4 +           # 40% weight on ratings
+            ctr_normalized * 0.3 +              # 30% weight on click-through rate
+            favorites_normalized * 0.2 +        # 20% weight on favorites
+            views_normalized * 0.05 +           # 5% weight on views
+            self.michelin_boost * 0.05          # 5% weight on Michelin stars
+        )
+        
+        # Ensure score is between 0 and 1
+        self.recommendation_score = max(0.0, min(1.0, self.recommendation_score))
+        
+        return self.recommendation_score
+    
+    @classmethod
+    def update_top_recommendations(cls, limit=20):
+        """
+        Class method to update the top recommendations for the homepage.
+        Should be run periodically (e.g., daily) via Celery task.
+        """
+        from django.db.models import Count, Avg
+        from accounts.models import UserFavoriteRestaurant
+        
+        # Calculate metrics for all restaurants
+        restaurants = Restaurant.objects.filter(
+            is_active=True
+        ).annotate(
+            avg_rating=Avg('reviews__rating'),
+            favorites_count=Count('user_favorites'),
+            views_count=Count('user_interactions')
+        )
+        
+        for restaurant in restaurants:
+            recommendation, created = cls.objects.get_or_create(
+                restaurant=restaurant,
+                defaults={
+                    'city': restaurant.city,
+                    'state': '',  # We don't have state in Restaurant model
+                    'country': restaurant.country,
+                }
+            )
+            
+            # Update metrics
+            recommendation.user_rating_average = restaurant.avg_rating or 0
+            recommendation.total_favorites_count = restaurant.favorites_count
+            recommendation.total_views_count = restaurant.views_count
+            recommendation.michelin_boost = restaurant.michelin_stars * 0.1
+            
+            # Calculate CTR from interactions
+            interactions = restaurant.user_interactions.all()
+            if interactions.exists():
+                clicks = interactions.filter(interaction_type='clicked').count()
+                impressions = interactions.filter(interaction_type='impression').count()
+                if impressions > 0:
+                    recommendation.click_through_rate = clicks / impressions
+            
+            # Calculate and save score
+            recommendation.calculate_score()
+            recommendation.save()
+        
+        # Update homepage featured flags
+        cls.objects.update(is_featured_homepage=False)
+        top_recommendations = cls.objects.order_by('-recommendation_score')[:limit]
+        for idx, rec in enumerate(top_recommendations):
+            rec.is_featured_homepage = True
+            rec.homepage_order = idx
+            rec.save()
+
+
+class UserRecommendationInteraction(models.Model):
+    """
+    Track user interactions with restaurant recommendations for algorithm improvement.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recommendation_interactions'
+    )
+    restaurant = models.ForeignKey(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name='user_interactions'
+    )
+    
+    interaction_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('impression', 'Shown to User'),
+            ('viewed', 'Viewed Details'),
+            ('clicked', 'Clicked Through'),
+            ('favorited', 'Added to Favorites'),
+            ('visited', 'Visited Restaurant'),
+            ('dismissed', 'Dismissed/Hidden'),
+        ],
+        db_index=True
+    )
+    
+    interaction_context = models.CharField(
+        max_length=50,
+        choices=[
+            ('homepage_featured', 'Homepage Featured Section'),
+            ('homepage_sidebar', 'Homepage Sidebar'),
+            ('search_results', 'Search Results'),
+            ('recommendation_api', 'Recommendation API'),
+            ('email_campaign', 'Email Campaign'),
+            ('personalized_page', 'Personalized Recommendations Page'),
+        ],
+        default='homepage_featured'
+    )
+    
+    session_id = models.CharField(max_length=100, blank=True)
+    recommendation_score_at_time = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'interaction_type', '-created_at'], name='user_interaction_idx'),
+            models.Index(fields=['restaurant', 'interaction_type'], name='restaurant_interaction_idx'),
+            models.Index(fields=['session_id', 'created_at'], name='session_tracking_idx'),
+            models.Index(fields=['interaction_context', 'created_at'], name='context_tracking_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'restaurant', 'interaction_type', 'session_id'],
+                name='unique_user_restaurant_interaction_per_session'
+            ),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.interaction_type} - {self.restaurant.name}"
+
+
 class ScrapingBacklogTask(BaseModel):
     """PostgreSQL-based scraping backlog task model for async processing."""
     

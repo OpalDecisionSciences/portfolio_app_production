@@ -28,8 +28,22 @@ class User(AbstractUser):
     
     # Profile Information
     phone_number = models.CharField(max_length=20, blank=True)
-    date_of_birth = models.DateField(null=True, blank=True)
-    location = models.CharField(max_length=100, blank=True, help_text="City, Country")
+    birth_month = models.IntegerField(
+        null=True, 
+        blank=True,
+        choices=[
+            (1, 'January'), (2, 'February'), (3, 'March'),
+            (4, 'April'), (5, 'May'), (6, 'June'),
+            (7, 'July'), (8, 'August'), (9, 'September'),
+            (10, 'October'), (11, 'November'), (12, 'December')
+        ],
+        help_text="Birth month for birthday greetings"
+    )
+    
+    # Location fields (structured)
+    city = models.CharField(max_length=100, blank=True, help_text="City of residence")
+    state = models.CharField(max_length=100, blank=True, help_text="State/Province of residence")
+    country = models.CharField(max_length=100, blank=True, help_text="Country of residence")
     
     # Dining Preferences
     preferred_cuisines = models.JSONField(
@@ -92,9 +106,22 @@ class User(AbstractUser):
         return bool(
             self.first_name and 
             self.last_name and 
-            self.location and
+            self.city and
+            self.country and
             self.preferred_cuisines
         )
+    
+    @property
+    def location_display(self):
+        """Get formatted location string for display."""
+        parts = []
+        if self.city:
+            parts.append(self.city)
+        if self.state:
+            parts.append(self.state)
+        if self.country:
+            parts.append(self.country)
+        return ', '.join(parts) if parts else 'Location not set'
 
 
 class UserFavoriteRestaurant(BaseModel):

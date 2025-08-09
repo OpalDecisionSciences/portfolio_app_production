@@ -33,13 +33,42 @@ class CustomUserCreationForm(UserCreationForm):
             'placeholder': 'Last name'
         })
     )
-    location = forms.CharField(
+    city = forms.CharField(
         max_length=100,
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'City, Country (optional)'
+            'placeholder': 'City (optional)'
         })
+    )
+    state = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'State/Province (optional)'
+        })
+    )
+    country = forms.CharField(
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Country (optional)'
+        })
+    )
+    birth_month = forms.ChoiceField(
+        required=False,
+        choices=[('', '-- Select Birth Month --')] + [(i, month) for i, month in [
+            (1, 'January'), (2, 'February'), (3, 'March'),
+            (4, 'April'), (5, 'May'), (6, 'June'),
+            (7, 'July'), (8, 'August'), (9, 'September'),
+            (10, 'October'), (11, 'November'), (12, 'December')
+        ]],
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        }),
+        help_text='For birthday greetings (optional)'
     )
     newsletter_subscription = forms.BooleanField(
         required=False,
@@ -52,7 +81,7 @@ class CustomUserCreationForm(UserCreationForm):
     
     class Meta:
         model = User
-        fields = ('username', 'email', 'first_name', 'last_name', 'location', 
+        fields = ('username', 'email', 'first_name', 'last_name', 'city', 'state', 'country', 'birth_month',
                  'password1', 'password2', 'newsletter_subscription')
     
     def __init__(self, *args, **kwargs):
@@ -102,7 +131,10 @@ class CustomUserCreationForm(UserCreationForm):
         user.email = self.cleaned_data['email']
         user.first_name = self.cleaned_data['first_name']
         user.last_name = self.cleaned_data['last_name']
-        user.location = self.cleaned_data.get('location', '')
+        user.city = self.cleaned_data.get('city', '')
+        user.state = self.cleaned_data.get('state', '')
+        user.country = self.cleaned_data.get('country', '')
+        user.birth_month = self.cleaned_data.get('birth_month') or None
         user.newsletter_subscription = self.cleaned_data.get('newsletter_subscription', True)
         
         if commit:
@@ -177,7 +209,7 @@ class UserProfileForm(forms.ModelForm):
         model = User
         fields = [
             'first_name', 'last_name', 'email', 'phone_number', 
-            'date_of_birth', 'location', 'preferred_cuisines',
+            'birth_month', 'city', 'state', 'country', 'preferred_cuisines',
             'dietary_restrictions', 'price_range_preference',
             'newsletter_subscription', 'push_notifications'
         ]
@@ -186,8 +218,10 @@ class UserProfileForm(forms.ModelForm):
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
             'phone_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+1 (555) 123-4567'}),
-            'date_of_birth': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'location': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'City, Country'}),
+            'birth_month': forms.Select(attrs={'class': 'form-control'}),
+            'city': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'City'}),
+            'state': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'State/Province'}),
+            'country': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Country'}),
             'price_range_preference': forms.Select(attrs={'class': 'form-control'}),
             'newsletter_subscription': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'push_notifications': forms.CheckboxInput(attrs={'class': 'form-check-input'}),

@@ -25,6 +25,8 @@ from .recommenders import RestaurantRecommender
 import requests
 from django.conf import settings
 import math
+# Import UnifiedSearchFilters through our Django adapter
+from .search_filters import DjangoSearchFilterAdapter
 from search.unified_filters import UnifiedSearchFilters
 from .semantic_search import SemanticSearchService, SearchMethod, QueryAnalyzer
 
@@ -151,6 +153,8 @@ class RestaurantListView(ListView):
         # Before: 60+ queries for 20 restaurants (1 + N×3 image queries)
         # After: 3-4 queries total (94% reduction)
         from django.db.models import Prefetch
+        
+        # Start with base queryset
         queryset = Restaurant.objects.filter(is_active=True).select_related().prefetch_related(
             Prefetch('images', queryset=RestaurantImage.objects.select_related()),
             'chefs', 
@@ -158,48 +162,35 @@ class RestaurantListView(ListView):
             'reviews'
         )
         
-        # Search functionality
-        search_query = self.request.GET.get('search', '')
-        if search_query:
-            queryset = queryset.filter(
-                Q(name__icontains=search_query) |
-                Q(city__icontains=search_query) |
-                Q(country__icontains=search_query) |
-                Q(cuisine_type__icontains=search_query) |
-                Q(description__icontains=search_query)
-            )
+        # Use UnifiedSearchFilters for all filtering
+        unified_filters = DjangoSearchFilterAdapter.from_request(self.request)
         
-        # Filters with case-insensitive matching
-        country = self.request.GET.get('country', '')
-        if country:
-            queryset = queryset.filter(country__iexact=country)
+        # Override query from 'search' parameter if present
+        if self.request.GET.get('search'):
+            unified_filters.query = self.request.GET.get('search')
         
-        city = self.request.GET.get('city', '')
-        if city:
-            queryset = queryset.filter(city__iexact=city)
+        # Override sort from 'sort' parameter for backward compatibility
+        if self.request.GET.get('sort'):
+            sort_map = {
+                'rating': 'rating',
+                'stars': 'relevance',  # Will be handled by michelin_stars filter
+                'city': 'alphabetical',
+                'name': 'alphabetical'
+            }
+            unified_filters.sort_by = sort_map.get(self.request.GET.get('sort'), 'alphabetical')
         
-        cuisine = self.request.GET.get('cuisine', '')
-        if cuisine:
-            queryset = queryset.filter(cuisine_type__iexact=cuisine)
+        # Apply unified filters to queryset
+        queryset = DjangoSearchFilterAdapter.apply_to_restaurant_queryset(
+            queryset, 
+            unified_filters,
+            use_semantic=False  # Use traditional search for list view
+        )
         
-        stars = self.request.GET.get('stars', '')
-        if stars:
-            queryset = queryset.filter(michelin_stars=int(stars))
-        
-        price_range = self.request.GET.get('price_range', '')
-        if price_range:
-            queryset = queryset.filter(price_range=price_range)
-        
-        # Sorting
-        sort_by = self.request.GET.get('sort', 'name')
-        if sort_by == 'rating':
-            queryset = queryset.order_by('-rating', 'name')
-        elif sort_by == 'stars':
+        # Special handling for stars sorting (backward compatibility)
+        if self.request.GET.get('sort') == 'stars':
             queryset = queryset.order_by('-michelin_stars', 'name')
-        elif sort_by == 'city':
+        elif self.request.GET.get('sort') == 'city':
             queryset = queryset.order_by('city', 'name')
-        else:  # default to name
-            queryset = queryset.order_by('name')
         
         return queryset
     
@@ -450,36 +441,32 @@ def michelin_starred_restaurants(request):
 
 
 def restaurant_search_api(request):
-    """Enhanced API endpoint for restaurant search with recommendations and images."""
-    query = request.GET.get('q', '')
-    location = request.GET.get('location', '')
-    cuisine = request.GET.get('cuisine', '')
-    price_range = request.GET.get('price_range', '')
-    min_stars = request.GET.get('min_stars', '')
-    max_results = int(request.GET.get('max_results', 10))
+    """Enhanced API endpoint for restaurant search with recommendations and images using UnifiedSearchFilters."""
+    # Use UnifiedSearchFilters for standardized parameter handling
+    unified_filters = DjangoSearchFilterAdapter.from_request(request)
     
     recommender = RestaurantRecommender()
     
-    # Build filters
+    # Convert UnifiedSearchFilters to legacy format for recommender (temporary compatibility)
     filters = {}
-    if cuisine:
-        filters['cuisine'] = cuisine
-    if price_range:
-        filters['price_range'] = price_range
-    if min_stars:
-        filters['min_stars'] = int(min_stars)
+    if unified_filters.cuisine_type:
+        filters['cuisine'] = unified_filters.cuisine_type
+    if unified_filters.price_range:
+        filters['price_range'] = unified_filters.price_range[0] if isinstance(unified_filters.price_range, list) else unified_filters.price_range
+    if unified_filters.michelin_stars:
+        filters['min_stars'] = unified_filters.michelin_stars[0] if isinstance(unified_filters.michelin_stars, list) else unified_filters.michelin_stars
     
     # Get search results with recommendations
-    if query or location or filters:
+    if unified_filters.query or unified_filters.city or unified_filters.country or filters:
         search_results = recommender.search_restaurants(
-            query=query,
-            location=location,
+            query=unified_filters.query,
+            location=unified_filters.city or unified_filters.country,
             filters=filters,
-            max_results=max_results
+            max_results=unified_filters.limit
         )
     else:
         # Return popular restaurants for empty search
-        search_results = recommender._get_popular_restaurants(max_results)
+        search_results = recommender._get_popular_restaurants(unified_filters.limit)
     
     # Format results for API response
     results = []
@@ -2016,32 +2003,34 @@ def semantic_search_view(request):
 def unified_search_proxy_api(request):
     """
     High-performance proxy API endpoint for unified search with Redis caching.
-    Integrates Django data with RAG service and provides intelligent caching.
+    Integrates Django data with RAG service using UnifiedSearchFilters.
     """
     try:
         from .cache_integration import get_django_cache
         django_cache = get_django_cache()
         
-        # Parse request data
-        data = json.loads(request.body) if request.body else {}
-        query = data.get('query', '').strip()
+        # Use UnifiedSearchFilters for standardized parameter handling
+        unified_filters = DjangoSearchFilterAdapter.from_request(request)
         
-        if not query:
+        if not unified_filters.query:
             return JsonResponse({'error': 'Query is required'}, status=400)
         
+        # Convert filters to dict for caching and RAG service
+        filter_dict = DjangoSearchFilterAdapter.to_dict(unified_filters)
+        
         # Try cache first
-        cached_results = django_cache.get_cached_search_results(query, data)
+        cached_results = django_cache.get_cached_search_results(unified_filters.query, filter_dict)
         if cached_results:
             return JsonResponse(cached_results)
         
         # Get RAG service URL
         rag_service_url = getattr(settings, 'RAG_SERVICE_URL', 'http://localhost:8001')
         
-        # Forward request to RAG service
+        # Forward request to RAG service with unified filters
         try:
             rag_response = requests.post(
                 f"{rag_service_url}/unified-search/search",
-                json=data,
+                json=filter_dict,
                 timeout=30,
                 headers={'Content-Type': 'application/json'}
             )
@@ -2533,53 +2522,52 @@ def cache_health_api(request):
 def semantic_search_api(request):
     """
     Advanced semantic search API with intelligent query routing.
-    Integrates with SemanticSearchService for AI-powered search.
+    Uses UnifiedSearchFilters for consistent parameter handling.
     """
     try:
-        # Parse request data
-        if request.method == 'POST':
-            data = json.loads(request.body) if request.body else {}
-        else:
-            data = dict(request.GET.items())
+        # Use UnifiedSearchFilters for standardized parameter handling
+        unified_filters = DjangoSearchFilterAdapter.from_request(request)
         
-        query = data.get('query', '').strip()
-        if not query:
+        if not unified_filters.query:
             return JsonResponse({'error': 'Query is required'}, status=400)
         
         # Initialize semantic search service
         semantic_service = SemanticSearchService()
         
-        # Extract parameters
+        # Extract context from unified filters
         context = {
-            'location': data.get('location'),
-            'user_preferences': data.get('user_preferences', {}),
-            'address': data.get('address')
+            'location': unified_filters.city or unified_filters.country,
+            'user_preferences': {},
+            'address': f"{unified_filters.city}, {unified_filters.country}" if unified_filters.city and unified_filters.country else None
         }
         
+        # Convert unified filters to semantic search format
         filters = {
-            'city': data.get('city'),
-            'country': data.get('country'),
-            'cuisine_type': data.get('cuisine_type'),
-            'michelin_stars': data.get('michelin_stars'),
-            'price_range': data.get('price_range'),
-            'rating_min': data.get('rating_min'),
-            'rating_max': data.get('rating_max')
+            'city': unified_filters.city,
+            'country': unified_filters.country,
+            'cuisine_type': unified_filters.cuisine_type,
+            'michelin_stars': unified_filters.michelin_stars[0] if unified_filters.michelin_stars else None,
+            'price_range': unified_filters.price_range[0] if unified_filters.price_range else None,
+            'rating_min': unified_filters.rating_min,
+            'rating_max': unified_filters.rating_max
         }
         
-        limit = int(data.get('limit', 20))
-        force_method = data.get('force_method')
-        if force_method:
-            try:
-                force_method = SearchMethod(force_method)
-            except ValueError:
-                force_method = None
+        # Handle search method from unified filters
+        force_method = None
+        if hasattr(unified_filters, 'search_method'):
+            method_map = {
+                'semantic': SearchMethod.SEMANTIC,
+                'traditional': SearchMethod.TRADITIONAL,
+                'hybrid': SearchMethod.HYBRID
+            }
+            force_method = method_map.get(unified_filters.search_method)
         
         # Perform semantic search
         results = semantic_service.search_restaurants(
-            query=query,
+            query=unified_filters.query,
             context=context,
             filters=filters,
-            limit=limit,
+            limit=unified_filters.limit,
             force_method=force_method
         )
         
