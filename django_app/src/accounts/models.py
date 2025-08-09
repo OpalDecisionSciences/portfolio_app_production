@@ -8,7 +8,7 @@ import uuid
 # Import zero-CASCADE, zero-NULL architecture components
 from restaurants.base_models import (
     BaseModel, get_system_user, get_deleted_restaurant_placeholder,
-    DELETED_USER_ID, DELETED_RESTAURANT_ID
+    get_deleted_user, DELETED_USER_ID, DELETED_RESTAURANT_ID
 )
 
 
@@ -132,7 +132,7 @@ class UserFavoriteRestaurant(BaseModel):
         User, 
         on_delete=models.PROTECT, 
         related_name='favorite_restaurants',
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     restaurant = models.ForeignKey(
         'restaurants.Restaurant', 
@@ -202,7 +202,7 @@ class UserChatHistory(BaseModel):
         User, 
         on_delete=models.PROTECT, 
         related_name='chat_history',
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     
     # Chat session info
@@ -251,7 +251,7 @@ class PasswordResetToken(BaseModel):
     user = models.ForeignKey(
         User, 
         on_delete=models.PROTECT,
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     token = models.CharField(max_length=100, unique=True)
     expires_at = models.DateTimeField()
