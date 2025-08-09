@@ -17,6 +17,7 @@ from datetime import datetime
 import logging
 
 from .models import Restaurant, Chef, MenuSection, MenuItem, RestaurantReview, ScrapingJob, RestaurantImage, UserCart, CartItem, ChatCartInteraction
+from .error_utils import log_error, log_warning_with_context, ErrorTypes, safe_execute
 import json
 import os
 from pathlib import Path
@@ -65,8 +66,9 @@ def home_view(request):
             
             # Add personalized restaurants to the top restaurants
             top_restaurants = list(top_restaurants) + [rec['restaurant'] for rec in personalized_recs]
-        except Exception:
+        except Exception as e:
             # Fallback to standard approach if recommendation fails
+            log_error(e, ErrorTypes.PROCESSING_ERROR, context={'operation': 'personalized_recommendations_fallback'})
             top_restaurants = Restaurant.objects.filter(
                 is_active=True,
                 michelin_stars__gte=2
@@ -305,7 +307,12 @@ class RestaurantDetailView(DetailView):
                 return self._generate_about_from_scraped_content(restaurant)
                 
         except Exception as e:
-            pass  # Silently fail, document content is optional
+            # Log but continue - document content is optional
+            log_warning_with_context(
+                f"Failed to generate about content from scraped data: {str(e)}",
+                context={'restaurant_id': restaurant.id if restaurant else None},
+                restaurant=restaurant
+            )
         
         return None
     
@@ -342,8 +349,13 @@ class RestaurantDetailView(DetailView):
                     return json.loads(restaurant.timezone_info)
                 except (json.JSONDecodeError, AttributeError):
                     pass
-        except Exception:
-            pass
+        except Exception as e:
+            # Log timezone parsing failure but continue
+            log_warning_with_context(
+                f"Failed to parse restaurant timezone info: {str(e)}",
+                context={'restaurant_id': restaurant.id if restaurant else None},
+                restaurant=restaurant
+            )
         
         return None
 
@@ -528,7 +540,7 @@ def geocode_address(address):
                 'formatted_address': data['results'][0]['formatted_address']
             }
     except Exception as e:
-        print(f"Geocoding error: {e}")
+        log_error(e, ErrorTypes.EXTERNAL_API_ERROR, context={'operation': 'geocoding', 'address': address})
     
     return None
 
@@ -779,6 +791,18 @@ def restaurant_timezone_status_api(request, restaurant_id):
         return JsonResponse(response_data)
         
     except Exception as e:
+        # Try to get restaurant for error tracking
+        try:
+            restaurant = Restaurant.objects.get(id=restaurant_id)
+        except:
+            restaurant = None
+        
+        log_error(
+            e, 
+            ErrorTypes.API_ERROR, 
+            context={'operation': 'restaurant_timezone_status', 'restaurant_id': restaurant_id},
+            restaurant=restaurant
+        )
         return JsonResponse({
             'error': 'Unable to get restaurant status',
             'details': str(e)
@@ -811,8 +835,14 @@ def restaurants_open_now_api(request):
                         'michelin_stars': restaurant.michelin_stars,
                         'url': restaurant.get_absolute_url()
                     })
-            except Exception:
-                continue  # Skip restaurants with invalid data
+            except Exception as e:
+                # Skip restaurants with invalid data but log the issue
+                log_warning_with_context(
+                    f"Skipping restaurant with invalid data: {str(e)}",
+                    context={'restaurant_id': restaurant.id if restaurant else None},
+                    restaurant=restaurant
+                )
+                continue
         
         return JsonResponse({
             'open_restaurants': open_restaurants,
@@ -1518,7 +1548,12 @@ def restaurant_location_weather_api(request, restaurant_id):
         return JsonResponse(result)
         
     except Exception as e:
-        logger.error(f"Error in restaurant location/weather API: {str(e)}")
+        log_error(
+            e,
+            ErrorTypes.API_ERROR,
+            context={'operation': 'restaurant_location_weather', 'restaurant_id': restaurant_id},
+            restaurant=restaurant if 'restaurant' in locals() else None
+        )
         return JsonResponse({
             'error': 'Failed to get location and weather data'
         }, status=500)

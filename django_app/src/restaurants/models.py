@@ -92,6 +92,13 @@ class Restaurant(BaseModel):
     scraped_content = models.TextField(blank=True)
     timezone_info = models.JSONField(null=True, blank=True, help_text="JSON containing timezone and location details")
     
+    # Error Tracking - integrates with ScrapingJob system
+    has_processing_errors = models.BooleanField(default=False, db_index=True, help_text="Flag for filtering restaurants with processing errors")
+    error_count = models.PositiveIntegerField(default=0, help_text="Total number of processing errors encountered")
+    last_error_type = models.CharField(max_length=100, blank=True, help_text="Type of most recent error (e.g., 'scraping_failed', 'api_timeout')")
+    last_error_at = models.DateTimeField(null=True, blank=True, help_text="When the last error occurred")
+    data_quality_score = models.DecimalField(max_digits=3, decimal_places=2, default=1.00, help_text="Data completeness score (0.00-1.00)")
+    
     # Multi-restaurant support - NO CASCADE, NO NULL
     parent_group = models.ForeignKey(
         'self', 
@@ -287,6 +294,111 @@ class Restaurant(BaseModel):
             individual_restaurant_index=index,
             **restaurant_data
         )
+    
+    # Error Tracking Methods
+    def log_processing_error(self, error_type: str, error_message: str = "", save_to_db: bool = True):
+        """
+        Log a processing error for this restaurant.
+        Integrates with the existing ScrapingJob error tracking system.
+        
+        Args:
+            error_type: Type of error (e.g., 'scraping_failed', 'api_timeout', 'data_validation')
+            error_message: Detailed error message
+            save_to_db: Whether to save changes to database immediately
+        """
+        import logging
+        from django.utils import timezone
+        
+        logger = logging.getLogger('restaurants')
+        
+        self.has_processing_errors = True
+        self.error_count = models.F('error_count') + 1
+        self.last_error_type = error_type
+        self.last_error_at = timezone.now()
+        
+        if save_to_db:
+            # Use update to handle F() expression
+            Restaurant.objects.filter(pk=self.pk).update(
+                has_processing_errors=True,
+                error_count=models.F('error_count') + 1,
+                last_error_type=error_type,
+                last_error_at=timezone.now()
+            )
+            self.refresh_from_db(fields=['error_count'])
+        
+        # Log the error with proper context
+        logger.error(
+            f"Restaurant processing error - {error_type}: {self.name} (ID: {self.pk}). "
+            f"Error count: {self.error_count}. Message: {error_message}"
+        )
+    
+    def clear_processing_errors(self, save_to_db: bool = True):
+        """Clear error flags after successful processing."""
+        self.has_processing_errors = False
+        self.last_error_type = ""
+        
+        if save_to_db:
+            self.save(update_fields=['has_processing_errors', 'last_error_type'])
+    
+    def update_data_quality_score(self, save_to_db: bool = True):
+        """
+        Calculate and update data quality score based on completeness.
+        Score ranges from 0.00 (no data) to 1.00 (complete data).
+        """
+        score = 0.0
+        total_fields = 10  # Adjust based on important fields
+        
+        # Core fields (weight: 2 each)
+        if self.name: score += 2
+        if self.description: score += 2
+        if self.country: score += 1
+        if self.city: score += 1
+        
+        # Contact info (weight: 1 each)
+        if self.phone: score += 1
+        if self.website: score += 1
+        if self.address: score += 1
+        
+        # Location data (weight: 1)
+        if self.latitude and self.longitude: score += 1
+        
+        # Calculate final score
+        self.data_quality_score = min(score / total_fields, 1.00)
+        
+        if save_to_db:
+            self.save(update_fields=['data_quality_score'])
+    
+    @property
+    def can_be_featured(self):
+        """Determine if restaurant can be featured (good data quality, no recent errors)."""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Must have good data quality
+        if self.data_quality_score < 0.7:
+            return False
+            
+        # Must not have recent errors
+        if self.has_processing_errors and self.last_error_at:
+            if self.last_error_at > timezone.now() - timedelta(days=7):
+                return False
+                
+        return True
+    
+    @classmethod
+    def get_high_quality_restaurants(cls):
+        """Get restaurants with good data quality and no processing errors."""
+        return cls.active.filter(
+            has_processing_errors=False,
+            data_quality_score__gte=0.8
+        )
+    
+    @classmethod  
+    def get_restaurants_with_errors(cls):
+        """Get restaurants that need attention due to processing errors."""
+        return cls.objects.filter(
+            has_processing_errors=True
+        ).order_by('-last_error_at')
     
     def _handle_dependent_records(self):
         """

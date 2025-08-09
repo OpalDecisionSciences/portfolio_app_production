@@ -23,6 +23,13 @@ import hashlib
 from io import BytesIO
 import pytz
 
+# Import scraper error handling utilities
+from .scraper_error_utils import (
+    log_scraper_error, log_scraper_warning, log_scraper_info,
+    ScraperErrorTypes, safe_scrape_operation, ScrapingErrorContext,
+    create_scraping_job_with_error_tracking, complete_scraping_job
+)
+
 # Selenium imports
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -165,8 +172,12 @@ class UnifiedRestaurantScraper:
             'database_restaurant_id': None
         }
         
+        # Create scraping job for tracking
+        job_id = create_scraping_job_with_error_tracking(restaurant_name, url, 'unified_scraper')
+        results['job_id'] = job_id
+        
         try:
-            logger.info(f"Starting complete scraping for: {restaurant_name}")
+            log_scraper_info(f"Starting complete scraping for: {restaurant_name}", restaurant_name=restaurant_name, restaurant_url=url)
             
             # Step 1: Multi-page link filtering and content extraction
             if multi_page:
@@ -219,12 +230,31 @@ class UnifiedRestaurantScraper:
             if results.get('document_txt') or results.get('images_integrated', 0) > 0:
                 self._trigger_embedding_updates(restaurant_name, results)
             
-            logger.info(f"Complete scraping finished for: {restaurant_name}")
+            log_scraper_info(f"Complete scraping finished for: {restaurant_name}", restaurant_name=restaurant_name, restaurant_url=url)
+            
+            # Mark scraping job as completed
+            complete_scraping_job(job_id, success=True, scraped_data={
+                'menu_sections': results.get('menu_sections_created', 0),
+                'menu_items': results.get('menu_items_created', 0),
+                'images': results.get('images_integrated', 0)
+            })
+            
             return results
             
         except Exception as e:
-            logger.error(f"Error in complete scraping for {restaurant_name}: {e}")
+            log_scraper_error(
+                e, 
+                ScraperErrorTypes.SCRAPING_ERROR,
+                context={'operation': 'complete_scraping'},
+                restaurant_name=restaurant_name,
+                restaurant_url=url,
+                scraping_job_id=job_id
+            )
             results['error'] = str(e)
+            
+            # Mark scraping job as failed
+            complete_scraping_job(job_id, success=False, error_message=str(e))
+            
             return results
         finally:
             self._cleanup()
@@ -248,7 +278,7 @@ class UnifiedRestaurantScraper:
             return content_data
             
         except Exception as e:
-            logger.error(f"Content scraping failed for {url}: {e}")
+            log_scraper_error(e, ScraperErrorTypes.SCRAPING_ERROR, context={'url': url})
             return None
     
     def _get_with_requests(self, url: str) -> Optional[Dict[str, Any]]:
@@ -279,7 +309,7 @@ class UnifiedRestaurantScraper:
             }
             
         except Exception as e:
-            logger.error(f"Requests scraping failed: {e}")
+            log_scraper_error(e, ScraperErrorTypes.NETWORK_ERROR, context={'url': url, 'method': 'requests'})
             return None
     
     def _get_with_selenium(self, url: str) -> Optional[Dict[str, Any]]:
@@ -308,7 +338,7 @@ class UnifiedRestaurantScraper:
             }
             
         except Exception as e:
-            logger.error(f"Selenium scraping failed: {e}")
+            log_scraper_error(e, ScraperErrorTypes.SELENIUM_ERROR, context={'url': url, 'method': 'selenium'})
             return None
     
     def _init_selenium_driver(self):
@@ -411,7 +441,7 @@ class UnifiedRestaurantScraper:
             return analysis_result
             
         except Exception as e:
-            logger.error(f"LLM analysis failed: {e}")
+            log_scraper_error(e, ScraperErrorTypes.LLM_ERROR, context={'url': url, 'restaurant_name': restaurant_name})
             return {'error': str(e)}
     
     def _get_restaurant_summary(self, content: str, url: str) -> Optional[Dict]:
@@ -633,8 +663,7 @@ class UnifiedRestaurantScraper:
             return db_result
             
         except Exception as e:
-            logger.error(f"Database save failed: {e}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            log_scraper_error(e, ScraperErrorTypes.DATABASE_ERROR, context={'operation': 'database_save'})
             db_result['error'] = str(e)
             db_result['traceback'] = traceback.format_exc()
             return db_result
