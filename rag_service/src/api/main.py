@@ -39,15 +39,12 @@ if not api_key:
     print("WARNING: OPENAI_API_KEY environment variable is required - running in fallback mode")
     # Allow service to start in fallback mode rather than crashing
 
-# Setup portfolio paths for cross-component imports
+# Setup portfolio paths for cross-component imports - use centralized approach
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-from config import setup_portfolio_paths
-setup_portfolio_paths()
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['rag_service'])
 
 from token_management.token_manager import init_token_manager, call_openai_chat, get_token_usage_summary
-
-# Import hybrid retrieval system
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from retrieval.hybrid_retriever import HybridRetriever
 from tools.location_weather_tools import get_location_weather_tools
 

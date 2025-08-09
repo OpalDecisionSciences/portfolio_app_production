@@ -65,6 +65,30 @@ def get_env_list(var_name: str, default: Optional[list] = None) -> list:
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def get_admin_allowed_ips() -> list:
+    """
+    Get admin allowed IPs from individual environment variables.
+    Clean, simple approach following best practices.
+    
+    Returns:
+        List of allowed IP addresses and networks
+    """
+    admin_ips = []
+    
+    # Individual IP variables with clear purposes
+    user_ip = os.environ.get('ADMIN_USER_IP', '').strip()
+    server_ip = os.environ.get('ADMIN_SERVER_IP', '').strip()
+    docker_network = os.environ.get('ADMIN_DOCKER_NETWORK', '172.16.0.0/12').strip()
+    localhost = os.environ.get('ADMIN_LOCALHOST', '127.0.0.1').strip()
+    
+    # Add non-empty IPs
+    for ip in [user_ip, server_ip, docker_network, localhost]:
+        if ip:
+            admin_ips.append(ip)
+    
+    return admin_ips
+
+
 def generate_secret_key() -> str:
     """
     Generate a cryptographically secure secret key.
@@ -225,7 +249,7 @@ def get_security_middleware() -> list:
     ]
     
     # Add admin IP whitelist middleware if configured
-    if get_env_list('ADMIN_ALLOWED_IPS'):
+    if get_admin_allowed_ips():
         middleware.insert(0, 'portfolio_project.middleware.AdminIPWhitelistMiddleware')
     
     return middleware

@@ -5,9 +5,10 @@ Test script for hybrid retrieval system.
 import sys
 from pathlib import Path
 
-# Add project paths
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Use comprehensive path management
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['rag_service'])
 
 from retrieval.hybrid_retriever import HybridRetriever
 from langchain_core.documents import Document

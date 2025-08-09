@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
 
-# Add project paths
+# Use comprehensive path management
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "shared" / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "embeddings"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['rag_service'])
 
 from unified_embedding_generator import UnifiedEmbeddingGenerator
 from dotenv import load_dotenv

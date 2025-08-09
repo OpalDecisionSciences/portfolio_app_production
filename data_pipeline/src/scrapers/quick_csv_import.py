@@ -11,9 +11,10 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 # Setup portfolio paths for cross-component imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-from config import setup_portfolio_paths
-setup_portfolio_paths()
+# Use comprehensive path management
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline', 'django'])
 
 # Set up Django environment
 import os

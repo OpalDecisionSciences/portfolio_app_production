@@ -41,10 +41,11 @@ from PIL import Image
 # Language detection
 from langdetect import detect as detect_language
 
-# Django integration
+# Django integration - use comprehensive path management
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "django_app" / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline', 'django'])
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'portfolio_project.settings')
 import django

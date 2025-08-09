@@ -8,10 +8,10 @@ import sys
 from pathlib import Path
 import json
 
-# Add project paths
-sys.path.insert(0, str(Path(__file__).resolve().parent / "data_pipeline" / "src" / "scrapers"))
+# Use comprehensive path management
 sys.path.insert(0, str(Path(__file__).resolve().parent / "shared" / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent / "django_app" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline', 'django'])
 
 # Setup Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'portfolio_project.settings')

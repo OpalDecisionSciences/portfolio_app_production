@@ -35,9 +35,10 @@ from bs4 import BeautifulSoup, Comment
 # Setup portfolio paths for cross-component imports
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-from config import setup_portfolio_paths
-setup_portfolio_paths()
+# Use comprehensive path management
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline'])
 
 from token_management.token_manager import call_openai_chat, get_token_usage_summary, init_token_manager
 

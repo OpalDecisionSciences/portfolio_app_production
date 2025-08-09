@@ -36,8 +36,8 @@ except ImportError:
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-from config import setup_portfolio_paths
-setup_portfolio_paths()
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline'])
 
 from token_management.token_manager import call_openai_chat
 from dotenv import load_dotenv

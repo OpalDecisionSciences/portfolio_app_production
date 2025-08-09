@@ -45,8 +45,8 @@ import templates
 
 # Setup portfolio paths for dependencies
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-from config import setup_portfolio_paths
-setup_portfolio_paths()
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline', 'django'])
 
 from token_management.token_manager import (
     call_openai_chat, get_token_usage_summary, update_last_completed_row, 

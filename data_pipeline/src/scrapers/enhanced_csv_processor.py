@@ -7,8 +7,10 @@ import os
 from pathlib import Path
 
 # Setup paths
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "django_app" / "src"))
+# Use comprehensive path management
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['data_pipeline', 'django'])
 
 # Override database host
 os.environ['DATABASE_HOST'] = 'localhost'

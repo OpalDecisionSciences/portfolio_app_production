@@ -13,8 +13,10 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 
-# Add shared modules to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'shared' / 'src'))
+# Use comprehensive path management
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "shared" / "src"))
+from path_manager import setup_portfolio_paths
+setup_portfolio_paths(['rag_service'])
 from token_management.token_manager import init_token_manager, call_openai_chat
 
 load_dotenv()
