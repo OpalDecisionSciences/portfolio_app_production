@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-EC2_IP="13.223.94.223"
+EC2_IP="34.233.24.183"
 KEY_FILE="~/.ssh/opal-decision-sciences-prod-kp.pem"
 EC2_USER="ubuntu"
 APP_DIR="/home/ubuntu/portfolio_app_production"

@@ -15,6 +15,7 @@ DELETED_RESTAURANT_ID = uuid.UUID('00000000-0000-0000-0000-000000000002')
 DISCONTINUED_ITEM_ID = uuid.UUID('00000000-0000-0000-0000-000000000003')
 DELETED_USER_ID = uuid.UUID('00000000-0000-0000-0000-000000000004')
 DELETED_CART_ID = uuid.UUID('00000000-0000-0000-0000-000000000005')
+DELETED_SECTION_ID = uuid.UUID('00000000-0000-0000-0000-000000000006')
 
 # Date constants for non-NULL date fields
 NEVER_DATE = date.max  # 9999-12-31
@@ -29,6 +30,26 @@ def get_system_user():
 def get_deleted_restaurant_placeholder():
     """Return placeholder restaurant ID for orphaned records."""
     return DELETED_RESTAURANT_ID
+
+
+def get_deleted_user():
+    """Return deleted user ID for orphaned user references."""
+    return DELETED_USER_ID
+
+
+def get_deleted_cart():
+    """Return deleted cart ID for orphaned cart references."""
+    return DELETED_CART_ID
+
+
+def get_discontinued_item():
+    """Return discontinued item ID for orphaned menu item references."""
+    return DISCONTINUED_ITEM_ID
+
+
+def get_deleted_section():
+    """Return deleted section ID for orphaned menu section references."""
+    return DELETED_SECTION_ID
 
 
 class EntityStatus(models.TextChoices):

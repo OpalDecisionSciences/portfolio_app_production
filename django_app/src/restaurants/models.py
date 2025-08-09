@@ -21,8 +21,9 @@ import pytz
 from .base_models import (
     BaseModel, EntityStatus, EmploymentStatus, MenuStatus, CartStatus,
     CartItemStatus, ReviewStatus, EntityEvent, get_system_user,
-    get_deleted_restaurant_placeholder, DELETED_RESTAURANT_ID,
-    DISCONTINUED_ITEM_ID, DELETED_USER_ID, DELETED_CART_ID, NEVER_DATE
+    get_deleted_restaurant_placeholder, get_deleted_user, get_deleted_cart,
+    get_discontinued_item, get_deleted_section, DELETED_RESTAURANT_ID,
+    DISCONTINUED_ITEM_ID, DELETED_USER_ID, DELETED_CART_ID, DELETED_SECTION_ID, NEVER_DATE
 )
 
 
@@ -539,7 +540,7 @@ class MenuItem(BaseModel):
         MenuSection, 
         on_delete=models.PROTECT, 
         related_name='items',
-        default=lambda: None  # Will need special handling for deleted sections
+        default=get_deleted_section  # Will need special handling for deleted sections
     )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -612,7 +613,7 @@ class UserCart(BaseModel):
         settings.AUTH_USER_MODEL, 
         on_delete=models.PROTECT, 
         related_name='carts',
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     restaurant = models.ForeignKey(
         Restaurant, 
@@ -706,13 +707,13 @@ class CartItem(BaseModel):
         UserCart, 
         on_delete=models.PROTECT, 
         related_name='items',
-        default=lambda: DELETED_CART_ID
+        default=get_deleted_cart
     )
     menu_item = models.ForeignKey(
         MenuItem, 
         on_delete=models.PROTECT, 
         related_name='cart_items',
-        default=lambda: DISCONTINUED_ITEM_ID
+        default=get_discontinued_item
     )
     quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
     special_requests = models.TextField(blank=True, help_text="Customizations or special requests")
@@ -793,13 +794,13 @@ class ChatCartInteraction(BaseModel):
         settings.AUTH_USER_MODEL, 
         on_delete=models.PROTECT, 
         related_name='chat_cart_interactions',
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     cart = models.ForeignKey(
         UserCart, 
         on_delete=models.PROTECT, 
         related_name='chat_interactions',
-        default=lambda: DELETED_CART_ID
+        default=get_deleted_cart
     )
     
     # Interaction data
@@ -1099,7 +1100,7 @@ class RestaurantReview(BaseModel):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.PROTECT,
-        default=lambda: DELETED_USER_ID
+        default=get_deleted_user
     )
     
     # Review status - preserve reviews even if restaurant/user deleted
