@@ -10,19 +10,19 @@ class UserAdmin(BaseUserAdmin):
     Custom User admin with enhanced functionality.
     """
     list_display = [
-        'email', 'username', 'get_full_name', 'location', 
+        'email', 'username', 'get_full_name', 'get_location_display', 
         'profile_completed', 'email_verified', 'last_active', 'date_joined'
     ]
     list_filter = [
         'profile_completed', 'email_verified', 'newsletter_subscription',
-        'price_range_preference', 'is_staff', 'is_active', 'date_joined'
+        'price_range_preference', 'country', 'birth_month', 'is_staff', 'is_active', 'date_joined'
     ]
-    search_fields = ['email', 'username', 'first_name', 'last_name', 'location']
+    search_fields = ['email', 'username', 'first_name', 'last_name', 'city', 'country']
     ordering = ['-date_joined']
     
     fieldsets = BaseUserAdmin.fieldsets + (
         ('Profile Information', {
-            'fields': ('phone_number', 'date_of_birth', 'location')
+            'fields': ('phone_number', 'birth_month', 'city', 'state', 'country')
         }),
         ('Dining Preferences', {
             'fields': ('preferred_cuisines', 'dietary_restrictions', 'price_range_preference')
@@ -41,6 +41,10 @@ class UserAdmin(BaseUserAdmin):
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.username
     get_full_name.short_description = 'Full Name'
+    
+    def get_location_display(self, obj):
+        return obj.location_display
+    get_location_display.short_description = 'Location'
 
 
 @admin.register(UserFavoriteRestaurant)

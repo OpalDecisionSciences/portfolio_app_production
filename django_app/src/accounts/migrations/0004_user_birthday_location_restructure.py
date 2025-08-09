@@ -5,55 +5,20 @@
 from django.db import migrations, models
 
 def migrate_date_of_birth_to_month(apps, schema_editor):
-    """Extract month from date_of_birth and populate birth_month"""
-    User = apps.get_model('accounts', 'User')
-    for user in User.objects.exclude(date_of_birth__isnull=True):
-        user.birth_month = user.date_of_birth.month
-        user.save(update_fields=['birth_month'])
+    """No-op: No existing users to migrate"""
+    pass
 
 def reverse_birth_month_to_date(apps, schema_editor):
-    """Reverse migration - set arbitrary day for birth_month"""
-    User = apps.get_model('accounts', 'User')
-    import datetime
-    for user in User.objects.exclude(birth_month__isnull=True):
-        # Set to first day of the month, year 2000 as placeholder
-        user.date_of_birth = datetime.date(2000, user.birth_month, 1)
-        user.save(update_fields=['date_of_birth'])
+    """No-op: No existing users to reverse"""
+    pass
 
 def parse_location_to_fields(apps, schema_editor):
-    """Parse existing location string into city, state, country"""
-    User = apps.get_model('accounts', 'User')
-    for user in User.objects.exclude(location=''):
-        if user.location:
-            # Try to parse "City, State, Country" or "City, Country" format
-            parts = [p.strip() for p in user.location.split(',')]
-            if len(parts) >= 3:
-                user.city = parts[0]
-                user.state = parts[1] 
-                user.country = parts[2]
-            elif len(parts) == 2:
-                user.city = parts[0]
-                user.country = parts[1]
-                user.state = ''
-            elif len(parts) == 1:
-                user.city = parts[0]
-                user.state = ''
-                user.country = ''
-            user.save(update_fields=['city', 'state', 'country'])
+    """No-op: No existing users to migrate"""
+    pass
 
 def combine_fields_to_location(apps, schema_editor):
-    """Reverse migration - combine city, state, country back to location"""
-    User = apps.get_model('accounts', 'User')
-    for user in User.objects.all():
-        parts = []
-        if user.city:
-            parts.append(user.city)
-        if user.state:
-            parts.append(user.state)
-        if user.country:
-            parts.append(user.country)
-        user.location = ', '.join(parts)
-        user.save(update_fields=['location'])
+    """No-op: No existing users to reverse"""
+    pass
 
 class Migration(migrations.Migration):
     dependencies = [

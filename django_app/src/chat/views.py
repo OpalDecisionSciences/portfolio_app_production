@@ -37,7 +37,7 @@ def chat_view(request):
             'user_id': str(request.user.id),
             'full_name': request.user.get_full_name(),
             'short_name': request.user.get_short_name(),
-            'location': request.user.location,
+            'location': request.user.location_display,
             'profile_completed': request.user.has_complete_profile,
         }
         
@@ -155,7 +155,7 @@ def start_chat_session_view(request):
                 'user_preferences': {
                     'preferred_cuisines': request.user.preferred_cuisines,
                     'dietary_restrictions': request.user.dietary_restrictions,
-                    'location': request.user.location,
+                    'location': request.user.location_display,
                 }
             })
         else:
@@ -316,7 +316,7 @@ def get_user_context_view(request):
             'user_id': str(request.user.id),
             'profile': {
                 'name': request.user.get_full_name(),
-                'location': request.user.location,
+                'location': request.user.location_display,
                 'preferred_cuisines': request.user.preferred_cuisines,
                 'dietary_restrictions': request.user.dietary_restrictions,
                 'price_range_preference': request.user.price_range_preference,
