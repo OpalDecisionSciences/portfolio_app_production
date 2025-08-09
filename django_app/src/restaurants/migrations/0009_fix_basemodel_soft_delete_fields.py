@@ -71,16 +71,18 @@ class Migration(migrations.Migration):
         
         # Add is_active index for performance
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_is_active_created_at_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_is_active_created_at_idx "
             "ON restaurants_restaurant (is_active, created_at);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_is_active_created_at_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_is_active_created_at_idx;",
+            atomic=False  # Allow this to run outside transaction for PostgreSQL
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_deactivated_at_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_deactivated_at_idx "
             "ON restaurants_restaurant (deactivated_at);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_deactivated_at_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_deactivated_at_idx;",
+            atomic=False  # Allow this to run outside transaction for PostgreSQL
         ),
     ]
