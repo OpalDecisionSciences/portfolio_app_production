@@ -231,9 +231,13 @@ class RestaurantRecommender:
             id__in=user_reviews.values_list('restaurant_id', flat=True)
         ).select_related().prefetch_related('images')
         
-        # Apply preference filters
+        # Apply preference filters - GLOBAL-AWARE: Include regional field (state/province/region) for worldwide coverage
         if location:
-            candidates = candidates.filter(Q(city__icontains=location) | Q(country__icontains=location))
+            candidates = candidates.filter(
+                Q(city__icontains=location) | 
+                Q(state__icontains=location) |  # Covers states/provinces/regions/counties globally
+                Q(country__icontains=location)
+            )
         if cuisine:
             candidates = candidates.filter(cuisine_type__icontains=cuisine)
         if price_range:
@@ -276,17 +280,30 @@ class RestaurantRecommender:
         user_price_pref = getattr(user, 'price_range_preference', None)
         user_location = getattr(user, 'location', None)
         
-        # Start with all active restaurants
+        # Start with all active restaurants - OPTIMIZED: Proper database query optimization
         candidates = Restaurant.objects.filter(is_active=True).exclude(
             id__in=excluded_ids
-        ).select_related().prefetch_related('images')
+        ).select_related(
+            'created_by', 'deactivated_by'  # Foreign keys that may be accessed in scoring
+        ).prefetch_related(
+            'images', 'chefs', 'reviews__user', 'menu_sections__items'  # Related objects to avoid N+1
+        )
         
         # Apply location filters (prefer user's location if not specified)
         location_filter = location or user_location
         if location_filter:
-            candidates = candidates.filter(
-                Q(city__icontains=location_filter) | Q(country__icontains=location_filter)
-            )
+            # CRITICAL FIX: Enhanced location filtering with state field and intelligent parsing
+            location_parts = [part.strip() for part in location_filter.split(',')]
+            location_q = Q()
+            for part in location_parts:
+                if part:
+                    location_q |= (
+                        Q(city__icontains=part) | 
+                        Q(state__icontains=part) | 
+                        Q(country__icontains=part)
+                    )
+            if location_q:
+                candidates = candidates.filter(location_q)
         
         # Apply cuisine filter
         if cuisine:
@@ -299,16 +316,17 @@ class RestaurantRecommender:
         
         recommendations = []
         
-        # Get collaborative filtering data
+        # CRITICAL FIX: Pre-calculate expensive operations OUTSIDE the loop to fix N+1 queries
+        user_preferences = self._analyze_user_preferences(user_reviews) if user_reviews.exists() else {}
         similar_users = self._find_similar_users(user)
         collab_recommendations = self._get_collaborative_recommendations(user, similar_users) if similar_users else {}
         
         for candidate in candidates:
-            # Calculate multiple scores
+            # Calculate multiple scores using pre-calculated data
             scores = {
                 'favorites_score': self._calculate_favorites_similarity_score(user_favorites, candidate),
                 'profile_score': self._calculate_profile_match_score(user, candidate),
-                'review_score': self._calculate_user_preference_score(candidate, self._analyze_user_preferences(user_reviews)) if user_reviews.exists() else 0,
+                'review_score': self._calculate_user_preference_score(candidate, user_preferences),  # Now uses pre-calculated preferences
                 'collaborative_score': collab_recommendations.get(candidate.id, 0),
                 'popularity_score': self._calculate_popularity_score(candidate) * 0.3,  # Lower weight for popularity
             }
@@ -359,9 +377,13 @@ class RestaurantRecommender:
         """Get content-based recommendations for anonymous users."""
         restaurants = Restaurant.objects.filter(is_active=True).select_related().prefetch_related('images')
         
-        # Apply filters
+        # Apply filters - GLOBAL-AWARE: Include regional subdivisions
         if location:
-            restaurants = restaurants.filter(Q(city__icontains=location) | Q(country__icontains=location))
+            restaurants = restaurants.filter(
+                Q(city__icontains=location) | 
+                Q(state__icontains=location) |  # Regional subdivisions (state/province/region/county)
+                Q(country__icontains=location)
+            )
         if cuisine:
             restaurants = restaurants.filter(cuisine_type__icontains=cuisine)
         if price_range:

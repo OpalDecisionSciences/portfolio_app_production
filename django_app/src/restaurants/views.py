@@ -46,9 +46,24 @@ def home_view(request):
         # For authenticated users, get a mix of highly-rated and personalized restaurants
         recommender = RestaurantRecommender()
         try:
-            # Get some personalized recommendations
+            # Get user location (from profile or IP geolocation)
+            user_location = None
+            if hasattr(request.user, 'city') and request.user.city:
+                location_parts = [request.user.city, request.user.state, request.user.country]
+                user_location = ', '.join(filter(None, location_parts))
+            else:
+                # Use IP geolocation for users without location in profile
+                geo_data = get_user_location_from_ip(request)
+                if geo_data and geo_data.get('status') in ['success', 'fallback']:
+                    user_location = f"{geo_data['city']}, {geo_data['country']}"
+            
+            # Get some personalized recommendations with proper parameters
             personalized_recs = recommender._get_enhanced_personalized_recommendations(
-                user=request.user, max_results=3
+                user=request.user,
+                location=user_location,
+                cuisine=getattr(request.user, 'preferred_cuisines', [None])[0] if getattr(request.user, 'preferred_cuisines', []) else None,
+                price_range=getattr(request.user, 'price_range_preference', None),
+                max_results=3
             )
             personalized_restaurant_ids = [rec['restaurant'].id for rec in personalized_recs]
             
