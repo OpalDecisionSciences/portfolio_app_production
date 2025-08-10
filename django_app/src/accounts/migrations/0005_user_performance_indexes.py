@@ -1,7 +1,29 @@
 # Migration to add missing User model indexes for performance (Medium Priority #3)
 # Addresses slow queries in production by adding indexes on frequently queried fields
 
-from django.db import migrations
+from django.db import migrations, connection
+
+def column_exists(table_name, column_name):
+    """Check if a column exists in a table"""
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = %s AND column_name = %s
+            );
+        """, [table_name, column_name])
+        return cursor.fetchone()[0]
+
+def create_index_if_column_exists(apps, schema_editor, table_name, index_name, index_sql, drop_sql):
+    """Create index only if the required columns exist"""
+    # Check if created_at column exists (main column we're having issues with)
+    if 'created_at' in index_sql and not column_exists(table_name, 'created_at'):
+        print(f"Skipping index {index_name} - created_at column does not exist in {table_name}")
+        return
+    
+    # Execute the index creation
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(index_sql)
 
 class Migration(migrations.Migration):
     atomic = False  # Allow index creation outside transaction
@@ -36,18 +58,28 @@ class Migration(migrations.Migration):
             "DROP INDEX IF EXISTS idx_user_newsletter;"
         ),
         
-        # UserChatHistory indexes for performance
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS idx_userchathistory_user_created "
-            "ON accounts_userchathistory (user_id, created_at DESC);",
-            "DROP INDEX IF EXISTS idx_userchathistory_user_created;"
+        # UserChatHistory indexes for performance - conditional on created_at column existing
+        migrations.RunPython(
+            lambda apps, schema_editor: create_index_if_column_exists(
+                apps, schema_editor,
+                'accounts_userchathistory',
+                'idx_userchathistory_user_created',
+                "CREATE INDEX IF NOT EXISTS idx_userchathistory_user_created ON accounts_userchathistory (user_id, created_at DESC);",
+                "DROP INDEX IF EXISTS idx_userchathistory_user_created;"
+            ),
+            migrations.RunPython.noop
         ),
         
-        # UserFavoriteRestaurant indexes
-        migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS idx_userfavorite_user_created "
-            "ON accounts_userfavoriterestaurant (user_id, created_at DESC);",
-            "DROP INDEX IF EXISTS idx_userfavorite_user_created;"
+        # UserFavoriteRestaurant indexes - conditional on created_at column existing
+        migrations.RunPython(
+            lambda apps, schema_editor: create_index_if_column_exists(
+                apps, schema_editor,
+                'accounts_userfavoriterestaurant', 
+                'idx_userfavorite_user_created',
+                "CREATE INDEX IF NOT EXISTS idx_userfavorite_user_created ON accounts_userfavoriterestaurant (user_id, created_at DESC);",
+                "DROP INDEX IF EXISTS idx_userfavorite_user_created;"
+            ),
+            migrations.RunPython.noop
         ),
         
         migrations.RunSQL(
