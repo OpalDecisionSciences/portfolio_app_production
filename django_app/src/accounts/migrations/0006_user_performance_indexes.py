@@ -35,10 +35,10 @@ class Migration(migrations.Migration):
             "DROP INDEX IF EXISTS idx_user_newsletter;"
         ),
         
-        # UserChatHistory indexes for performance
+        # UserChatHistory indexes for performance - simple index without DESC on new field
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_userchathistory_user_created "
-            "ON accounts_userchathistory (user_id, created_at DESC);",
+            "ON accounts_userchathistory (user_id, created_at);",
             "DROP INDEX IF EXISTS idx_userchathistory_user_created;"
         ),
         
