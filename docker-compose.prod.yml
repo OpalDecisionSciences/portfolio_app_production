@@ -109,11 +109,11 @@ services:
       - portfolio_network_prod
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "celery -A portfolio_project inspect ping -d celery@$$HOSTNAME"]
+      test: ["CMD", "celery", "-A", "portfolio_project", "inspect", "ping"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 5
-      start_period: 60s
+      start_period: 90s
     command: celery -A portfolio_project worker --loglevel=info --concurrency=2
 
   # Celery beat for periodic tasks
