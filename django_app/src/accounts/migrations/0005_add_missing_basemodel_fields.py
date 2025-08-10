@@ -51,7 +51,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='userchathistory',
             name='created_at',
-            field=models.DateTimeField(auto_now_add=True),
+            field=models.DateTimeField(auto_now_add=True, default=timezone.now),
             preserve_default=False,
         ),
         migrations.AddField(
