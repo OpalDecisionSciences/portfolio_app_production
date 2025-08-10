@@ -13,52 +13,72 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Error tracking fields for Restaurant model
-        migrations.AddField(
-            model_name='restaurant',
-            name='has_processing_errors',
-            field=models.BooleanField(
-                default=False, 
-                db_index=True, 
-                help_text="Flag for filtering restaurants with processing errors"
-            ),
+        # Error tracking fields for Restaurant model - using SQL to handle existing fields
+        migrations.RunSQL(
+            """DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'restaurants_restaurant' 
+                              AND column_name = 'has_processing_errors') THEN
+                    ALTER TABLE restaurants_restaurant 
+                    ADD COLUMN has_processing_errors BOOLEAN DEFAULT FALSE NOT NULL;
+                    CREATE INDEX IF NOT EXISTS restaurants_restaurant_has_processing_errors_idx 
+                    ON restaurants_restaurant (has_processing_errors);
+                END IF;
+            END $$;""",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS has_processing_errors;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='error_count',
-            field=models.PositiveIntegerField(
-                default=0, 
-                help_text="Total number of processing errors encountered"
-            ),
+        
+        migrations.RunSQL(
+            """DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'restaurants_restaurant' 
+                              AND column_name = 'error_count') THEN
+                    ALTER TABLE restaurants_restaurant 
+                    ADD COLUMN error_count INTEGER DEFAULT 0 NOT NULL CHECK (error_count >= 0);
+                END IF;
+            END $$;""",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS error_count;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='last_error_type',
-            field=models.CharField(
-                max_length=100, 
-                blank=True, 
-                default='',
-                help_text="Type of most recent error (e.g., 'scraping_failed', 'api_timeout')"
-            ),
+        
+        migrations.RunSQL(
+            """DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'restaurants_restaurant' 
+                              AND column_name = 'last_error_type') THEN
+                    ALTER TABLE restaurants_restaurant 
+                    ADD COLUMN last_error_type VARCHAR(100) DEFAULT '' NOT NULL;
+                END IF;
+            END $$;""",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS last_error_type;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='last_error_at',
-            field=models.DateTimeField(
-                null=True, 
-                blank=True, 
-                help_text="When the last error occurred"
-            ),
+        
+        migrations.RunSQL(
+            """DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'restaurants_restaurant' 
+                              AND column_name = 'last_error_at') THEN
+                    ALTER TABLE restaurants_restaurant 
+                    ADD COLUMN last_error_at TIMESTAMP WITH TIME ZONE;
+                END IF;
+            END $$;""",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS last_error_at;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='data_quality_score',
-            field=models.DecimalField(
-                max_digits=3, 
-                decimal_places=2, 
-                default=1.00, 
-                help_text="Data completeness score (0.00-1.00)"
-            ),
+        
+        migrations.RunSQL(
+            """DO $$ 
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                              WHERE table_name = 'restaurants_restaurant' 
+                              AND column_name = 'data_quality_score') THEN
+                    ALTER TABLE restaurants_restaurant 
+                    ADD COLUMN data_quality_score DECIMAL(3,2) DEFAULT 1.00 NOT NULL;
+                END IF;
+            END $$;""",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS data_quality_score;"
         ),
         
         # Performance indexes (originally from migration 0012)
