@@ -20,17 +20,19 @@ class Migration(migrations.Migration):
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_cart_user_restaurant_status_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_cart_user_restaurant_status_idx "
             "ON restaurants_usercart (user_id, restaurant_id, cart_status, updated_at DESC);",
             
-            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_status_idx;"
+            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_status_idx;",
+            atomic=False
         ),
         
         # Additional index for cart status queries
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_usercart_cart_status_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_usercart_cart_status_idx "
             "ON restaurants_usercart (cart_status, is_active);",
             
-            "DROP INDEX IF EXISTS restaurants_usercart_cart_status_idx;"
+            "DROP INDEX IF EXISTS restaurants_usercart_cart_status_idx;",
+            atomic=False
         ),
     ]

@@ -7,8 +7,8 @@ services:
   # Celery Worker - Processes background tasks
   celery-worker:
     build:
-      context: ./django_app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/Dockerfile.django
     container_name: celery_worker
     command: celery -A portfolio_project worker --loglevel=info --concurrency=4 --queues=embeddings,ai_processing,scraping,maintenance,celery
     volumes:
@@ -33,7 +33,7 @@ services:
       - redis
       - rag
     networks:
-      - portfolio_network
+      - portfolio_network_prod
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "celery", "-A", "portfolio_project", "inspect", "ping"]
@@ -45,8 +45,8 @@ services:
   # Celery Beat - Schedules periodic tasks
   celery-beat:
     build:
-      context: ./django_app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/Dockerfile.django
     container_name: celery_beat
     command: celery -A portfolio_project beat --loglevel=info --scheduler=django_celery_beat.schedulers:DatabaseScheduler
     volumes:
@@ -69,7 +69,7 @@ services:
       - redis
       - celery-worker
     networks:
-      - portfolio_network
+      - portfolio_network_prod
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep 'celery.*beat' | grep -v grep || exit 1"]
@@ -81,8 +81,8 @@ services:
   # Celery Flower - Task monitoring (optional, for development/monitoring)
   celery-flower:
     build:
-      context: ./django_app
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/Dockerfile.django
     container_name: celery_flower
     command: celery -A portfolio_project flower --port=5555 --basic_auth=admin:flower_pass
     ports:
@@ -97,7 +97,7 @@ services:
       - redis
       - celery-worker
     networks:
-      - portfolio_network
+      - portfolio_network_prod
     restart: unless-stopped
     profiles:
       - monitoring  # Only start with --profile monitoring
@@ -107,5 +107,5 @@ volumes:
     driver: local
 
 networks:
-  portfolio_network:
-    external: true
+  portfolio_network_prod:
+    driver: bridge

@@ -22,114 +22,128 @@ class Migration(migrations.Migration):
         
         # Full-text search indexes for Restaurant (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_search_vector "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_search_vector "
             "ON restaurants_restaurant USING gin("
             "to_tsvector('english', name || ' ' || COALESCE(description, '') || ' ' || "
             "COALESCE(cuisine_type, '') || ' ' || city || ' ' || country));",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_search_vector;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_search_vector;",
+            atomic=False
         ),
         
         # Trigram indexes for fuzzy search (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_name_trigram "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_name_trigram "
             "ON restaurants_restaurant USING gin(name gin_trgm_ops);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_name_trigram;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_name_trigram;",
+            atomic=False
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_city_trigram "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_city_trigram "
             "ON restaurants_restaurant USING gin(city gin_trgm_ops);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_city_trigram;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_city_trigram;",
+            atomic=False
         ),
         
         # Composite indexes for common query patterns (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_search_rank_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_search_rank_idx "
             "ON restaurants_restaurant (is_active, michelin_stars, rating DESC);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_search_rank_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_search_rank_idx;",
+            atomic=False
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_location_cuisine_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_location_cuisine_idx "
             "ON restaurants_restaurant (country, city, cuisine_type, is_active);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_location_cuisine_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_location_cuisine_idx;",
+            atomic=False
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_price_rating_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_price_rating_idx "
             "ON restaurants_restaurant (price_range, rating, is_active);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_price_rating_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_price_rating_idx;",
+            atomic=False
         ),
         
         # Geographic search optimization (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_restaurant_geo_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_restaurant_geo_idx "
             "ON restaurants_restaurant (latitude, longitude);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_geo_idx;"
+            "DROP INDEX IF EXISTS restaurants_restaurant_geo_idx;",
+            atomic=False
         ),
         
         # Review search optimization (idempotent) - skip is_active until BaseModel migration applied
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_review_restaurant_rating_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_review_restaurant_rating_idx "
             "ON restaurants_restaurantreview (restaurant_id, rating DESC);",
             
-            "DROP INDEX IF EXISTS restaurants_review_restaurant_rating_idx;"
+            "DROP INDEX IF EXISTS restaurants_review_restaurant_rating_idx;",
+            atomic=False
         ),
         
         # Full-text search for reviews (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_review_content_search "
+            "CREATE INDEX IF NOT EXISTS restaurants_review_content_search "
             "ON restaurants_restaurantreview USING gin("
             "to_tsvector('english', title || ' ' || COALESCE(content, '')));",
             
-            "DROP INDEX IF EXISTS restaurants_review_content_search;"
+            "DROP INDEX IF EXISTS restaurants_review_content_search;",
+            atomic=False
         ),
         
         # Menu item search optimization (idempotent) - use correct field name section_id
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_menuitem_section_price_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_menuitem_section_price_idx "
             "ON restaurants_menuitem (section_id, price);",
             
-            "DROP INDEX IF EXISTS restaurants_menuitem_section_price_idx;"
+            "DROP INDEX IF EXISTS restaurants_menuitem_section_price_idx;",
+            atomic=False
         ),
         
         # Full-text search for menu items (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_menuitem_search "
+            "CREATE INDEX IF NOT EXISTS restaurants_menuitem_search "
             "ON restaurants_menuitem USING gin("
             "to_tsvector('english', name || ' ' || COALESCE(description, '')));",
             
-            "DROP INDEX IF EXISTS restaurants_menuitem_search;"
+            "DROP INDEX IF EXISTS restaurants_menuitem_search;",
+            atomic=False
         ),
         
         # Image search optimization (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_image_category_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_image_category_idx "
             "ON restaurants_restaurantimage (restaurant_id, ai_category, processing_status);",
             
-            "DROP INDEX IF EXISTS restaurants_image_category_idx;"
+            "DROP INDEX IF EXISTS restaurants_image_category_idx;",
+            atomic=False
         ),
         
         # Cart optimization (idempotent) - Note: cart_status field will be added in migration 0007
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_cart_user_restaurant_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_cart_user_restaurant_idx "
             "ON restaurants_usercart (user_id, restaurant_id, is_active, updated_at DESC);",
             
-            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_idx;"
+            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_idx;",
+            atomic=False
         ),
         
         # Scraping task optimization (idempotent)
         migrations.RunSQL(
-            "CREATE INDEX CONCURRENTLY IF NOT EXISTS restaurants_scrapingbacklogtask_queue_idx "
+            "CREATE INDEX IF NOT EXISTS restaurants_scrapingbacklogtask_queue_idx "
             "ON restaurants_scrapingbacklogtask (status, task_type, priority, created_at);",
             
-            "DROP INDEX IF EXISTS restaurants_scrapingbacklogtask_queue_idx;"
+            "DROP INDEX IF EXISTS restaurants_scrapingbacklogtask_queue_idx;",
+            atomic=False
         ),
     ]
