@@ -1,4 +1,4 @@
-# Migration to add missing database indexes for performance (Medium Priority #3)
+# Migration to add database indexes for performance (Medium Priority #3)
 # Addresses slow queries in production by adding indexes on frequently queried fields
 
 from django.db import migrations
@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
     atomic = False  # Allow index creation outside transaction
     
     dependencies = [
-        ('restaurants', '0010_top_restaurants_recommendation_system'),
+        ('restaurants', '0011_add_error_tracking_fields'),
     ]
 
     operations = [
@@ -25,9 +25,9 @@ class Migration(migrations.Migration):
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS idx_restaurant_city_state "
-            "ON restaurants_restaurant (city, state) WHERE is_active = true;",
-            "DROP INDEX IF EXISTS idx_restaurant_city_state;"
+            "CREATE INDEX IF NOT EXISTS idx_restaurant_city_country "
+            "ON restaurants_restaurant (city, country) WHERE is_active = true;",
+            "DROP INDEX IF EXISTS idx_restaurant_city_country;"
         ),
         
         migrations.RunSQL(
@@ -37,12 +37,12 @@ class Migration(migrations.Migration):
         ),
         
         migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS idx_restaurant_price_rating "
-            "ON restaurants_restaurant (price, rating) WHERE is_active = true;",
-            "DROP INDEX IF EXISTS idx_restaurant_price_rating;"
+            "CREATE INDEX IF NOT EXISTS idx_restaurant_price_range_rating "
+            "ON restaurants_restaurant (price_range, rating) WHERE is_active = true;",
+            "DROP INDEX IF EXISTS idx_restaurant_price_range_rating;"
         ),
         
-        # Error tracking indexes (for our new error handling system)
+        # Error tracking indexes (now that error fields exist from migration 0011)
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_restaurant_has_errors "
             "ON restaurants_restaurant (has_processing_errors) WHERE has_processing_errors = true;",
