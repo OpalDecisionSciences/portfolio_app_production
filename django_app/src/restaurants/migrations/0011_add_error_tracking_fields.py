@@ -152,10 +152,10 @@ class Migration(migrations.Migration):
             "DROP INDEX IF EXISTS idx_cartitem_cart_active;"
         ),
         
-        # Review indexes
+        # Review indexes (without is_active - field doesn't exist on RestaurantReview yet)
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_review_restaurant_rating "
-            "ON restaurants_restaurantreview (restaurant_id, rating) WHERE is_active = true;",
+            "ON restaurants_restaurantreview (restaurant_id, rating);",
             "DROP INDEX IF EXISTS idx_review_restaurant_rating;"
         ),
         
