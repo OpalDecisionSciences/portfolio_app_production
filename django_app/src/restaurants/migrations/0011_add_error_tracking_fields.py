@@ -159,7 +159,7 @@ class Migration(migrations.Migration):
             "DROP INDEX IF EXISTS idx_review_restaurant_rating;"
         ),
         
-        # Scraping job indexes
+        # Scraping job indexes (without WHERE is_active - these models don't have BaseModel fields yet)
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_scrapingjob_status_created "
             "ON restaurants_scrapingjob (status, created_at);",
@@ -168,7 +168,7 @@ class Migration(migrations.Migration):
         
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_imagescrapingjob_restaurant_status "
-            "ON restaurants_imagescrapingjob (restaurant_id, status) WHERE is_active = true;",
+            "ON restaurants_imagescrapingjob (restaurant_id, status);",
             "DROP INDEX IF EXISTS idx_imagescrapingjob_restaurant_status;"
         ),
     ]
