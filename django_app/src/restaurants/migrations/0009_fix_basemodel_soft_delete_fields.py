@@ -40,35 +40,18 @@ class Migration(migrations.Migration):
         # Create system user first
         migrations.RunPython(create_system_user, reverse_system_user),
         
-        # Restaurant - Add missing BaseModel fields
-        migrations.AddField(
-            model_name='restaurant',
-            name='deactivated_at',
-            field=models.DateTimeField(
-                default=timezone.make_aware(datetime.min),
-                help_text='When this record was deactivated. Uses datetime.min for never deactivated.'
-            ),
+        # Restaurant - Add missing BaseModel fields (using SQL to avoid conflicts)
+        migrations.RunSQL(
+            "ALTER TABLE restaurants_restaurant ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '0001-01-01 00:00:00+00';",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS deactivated_at;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='deactivation_reason',
-            field=models.CharField(
-                blank=True,
-                default='',
-                help_text='Reason for deactivation',
-                max_length=200
-            ),
+        migrations.RunSQL(
+            "ALTER TABLE restaurants_restaurant ADD COLUMN IF NOT EXISTS deactivation_reason VARCHAR(200) NOT NULL DEFAULT '';",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS deactivation_reason;"
         ),
-        migrations.AddField(
-            model_name='restaurant',
-            name='deactivated_by',
-            field=models.ForeignKey(
-                default=uuid.UUID('00000000-0000-0000-0000-000000000001'),
-                help_text='User who deactivated this record',
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name='restaurant_deactivations',
-                to=settings.AUTH_USER_MODEL
-            ),
+        migrations.RunSQL(
+            "ALTER TABLE restaurants_restaurant ADD COLUMN IF NOT EXISTS deactivated_by_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001';",
+            "ALTER TABLE restaurants_restaurant DROP COLUMN IF EXISTS deactivated_by_id;"
         ),
         
         # MenuItem - Add missing BaseModel fields (has created_at, updated_at but missing others)
