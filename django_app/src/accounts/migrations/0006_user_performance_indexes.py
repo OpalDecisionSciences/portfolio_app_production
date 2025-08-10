@@ -1,5 +1,4 @@
 # Migration to add missing User model indexes for performance (Medium Priority #3)
-# Addresses slow queries in production by adding indexes on frequently queried fields
 
 from django.db import migrations
 
@@ -46,7 +45,7 @@ class Migration(migrations.Migration):
         # UserFavoriteRestaurant indexes
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_userfavorite_user_created "
-            "ON accounts_userfavoriterestaurant (user_id, created_at DESC);",
+            "ON accounts_userfavoriterestaurant (user_id, added_at DESC);",
             "DROP INDEX IF EXISTS idx_userfavorite_user_created;"
         ),
         
