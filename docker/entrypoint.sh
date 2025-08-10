@@ -70,9 +70,8 @@ print_status "Setting up production environment..."
 mkdir -p /app/logs /app/celery-data
 chown -R appuser:appuser /app/logs /app/celery-data 2>/dev/null || true
 
-# Run migrations
-print_status "Running database migrations..."
-python manage.py migrate --noinput
+# NOTE: Migrations now handled by separate init container (best practice)
+# This ensures schema changes complete before application startup
 
 # Validate S3 connection and configuration
 print_status "Validating S3 configuration..."

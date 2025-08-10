@@ -36,7 +36,38 @@ services:
       timeout: 10s
       retries: 5
 
-  # Django web application
+  # Migration Init Container - Industry Best Practice: Separate Migration Phase
+  # Follows 12-Factor App: Build → Release → Run phases
+  # Database First Principle: Schema changes complete before application startup
+  migrate:
+    build: 
+      context: .
+      dockerfile: ./docker/Dockerfile.django
+    container_name: portfolio_migrate_prod
+    user: "1000:1000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./production_logs:/app/logs
+    networks:
+      - portfolio_network_prod
+    restart: "no"  # Run once and exit - critical for init containers
+    command: >
+      sh -c '
+        echo "🔄 [MIGRATION PHASE] Starting Django migrations..." &&
+        python manage.py migrate --noinput &&
+        echo "✅ [MIGRATION PHASE] All migrations completed successfully" &&
+        python manage.py showmigrations --plan | grep -q "\[ \]" && 
+        { echo "❌ [MIGRATION PHASE] Unapplied migrations detected" && exit 1; } ||
+        echo "✅ [MIGRATION PHASE] Schema validation complete - ready for application startup"
+      '
+
+  # Django web application - starts only after migrations complete
   web:
     build: 
       context: .
@@ -44,6 +75,8 @@ services:
     container_name: portfolio_web_prod
     user: "1000:1000"  # Explicit user mapping for static files permissions
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -71,6 +104,8 @@ services:
     env_file:
       - .env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -89,7 +124,7 @@ services:
       retries: 5
     command: uvicorn api.main:app --host 0.0.0.0 --port 8001 --workers 2
 
-  # Celery worker for background tasks
+  # Celery worker for background tasks - scrapers run here after migrations
   celery:
     build:
       context: .
@@ -97,6 +132,8 @@ services:
     container_name: portfolio_celery_prod
     user: "1000:1000"  # Consistent user mapping with web service
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -124,6 +161,8 @@ services:
     container_name: portfolio_celery_beat_prod
     user: "1000:1000"  # Consistent user mapping with web service
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -151,6 +190,8 @@ services:
     container_name: portfolio_flower_prod
     user: "1000:1000"  # Consistent user mapping with web service
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     env_file: 
