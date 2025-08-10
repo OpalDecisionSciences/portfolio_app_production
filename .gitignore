@@ -16,3 +16,14 @@ django_app/src/staticfiles/
 # Production logs (runtime generated)
 production_logs/
 *.log
+
+# SSL certificates and private keys (NEVER commit these)
+ssl/live/
+ssl/archive/
+ssl/accounts/
+ssl/renewal/
+ssl/renewal-hooks/
+
+# SSL configuration files (these are safe to commit)
+# ssl/options-ssl-nginx.conf
+# ssl/ssl-dhparams.pem
