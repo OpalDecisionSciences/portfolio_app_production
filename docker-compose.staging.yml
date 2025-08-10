@@ -1,0 +1,220 @@
+# Staging Environment Configuration
+# Mirrors production but with reduced resources and test data
+version: '3.8'
+
+services:
+  # Database - PostgreSQL with pgvector
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: portfolio_db_staging
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-portfolio_staging}
+      POSTGRES_USER: ${DATABASE_USER:-portfolio_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+      - ./production_logs/postgres:/var/log/postgresql
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-portfolio_user} -d ${DATABASE_NAME:-portfolio_staging}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Caching and session storage
+  redis:
+    image: redis:7-alpine
+    container_name: portfolio_redis_staging
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data_staging:/data
+      - ./production_logs/redis:/var/log/redis
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Migration service - runs before all other services
+  migrate:
+    build: 
+      context: .
+      dockerfile: ./docker/Dockerfile.django
+    container_name: portfolio_migrate_staging
+    restart: "no"  # Run once and exit
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER:-portfolio_user}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-portfolio_staging}
+      - REDIS_URL=redis://redis:6379/0
+    command: >
+      sh -c '
+        echo "🔄 [STAGING MIGRATION] Starting Django migrations..." &&
+        python manage.py migrate --noinput &&
+        echo "✅ [STAGING MIGRATION] All migrations completed successfully"
+      '
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./production_logs/django:/app/logs
+    networks:
+      - portfolio_network_staging
+
+  # Django Web Application
+  web:
+    build: 
+      context: .
+      dockerfile: ./docker/Dockerfile.django
+    container_name: portfolio_web_staging
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER:-portfolio_user}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-portfolio_staging}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=staging
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./staticfiles:/app/staticfiles
+      - ./media:/app/media
+      - ./production_logs/django:/app/logs
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RAG Service - AI-powered search and recommendations
+  rag:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.rag
+    container_name: portfolio_rag_staging
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=postgresql://${DATABASE_USER:-portfolio_user}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-portfolio_staging}
+      - REDIS_URL=redis://redis:6379/1
+      - ENVIRONMENT=staging
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./production_logs/rag:/app/logs
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery Worker - Background task processing
+  celery:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.django
+    container_name: portfolio_celery_staging
+    command: celery -A portfolio_project worker --loglevel=info --concurrency=2
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER:-portfolio_user}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-portfolio_staging}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=staging
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./production_logs/celery:/app/logs
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "celery", "-A", "portfolio_project", "inspect", "ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Celery Beat - Periodic task scheduler
+  celery-beat:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.django
+    container_name: portfolio_celery_beat_staging
+    command: celery -A portfolio_project beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      - DATABASE_URL=postgresql://${DATABASE_USER:-portfolio_user}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME:-portfolio_staging}
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=staging
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./production_logs/celery-beat:/app/logs
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[c]elery beat' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Nginx - Web server and reverse proxy
+  nginx:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.nginx
+    container_name: portfolio_nginx_staging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl:/etc/letsencrypt:ro
+      - ./ssl-challenges:/var/www/certbot
+      - ./production_logs/nginx:/var/log/nginx
+    depends_on:
+      web:
+        condition: service_healthy
+      rag:
+        condition: service_healthy
+    networks:
+      - portfolio_network_staging
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data_staging:
+  redis_data_staging:
+
+networks:
+  portfolio_network_staging:
+    driver: bridge

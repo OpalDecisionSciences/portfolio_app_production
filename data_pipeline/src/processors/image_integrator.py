@@ -103,19 +103,33 @@ class ImageIntegrator:
             logger.error(f"Error integrating images for {restaurant.name}: {e}")
             return 0
     
-    def _create_restaurant_image(self, restaurant: Restaurant, img_info: Dict, local_path: Path) -> Optional[RestaurantImage]:
-        """Create a RestaurantImage instance from scraped data."""
+    def _create_restaurant_image(self, restaurant: Restaurant, img_info: Dict, local_path: Path = None) -> Optional[RestaurantImage]:
+        """Create a RestaurantImage instance from scraped data.
+        
+        In production, can work with image_content directly without local file.
+        """
         try:
-            # Read image file
-            with open(local_path, 'rb') as img_file:
-                image_content = img_file.read()
+            # Handle both local file path and direct image content
+            if local_path and local_path.exists():
+                # Local file path (development/testing)
+                with open(local_path, 'rb') as img_file:
+                    image_content = img_file.read()
+                pil_image = Image.open(local_path)
+                filename = img_info.get('filename', local_path.name)
+            elif img_info.get('image_content'):
+                # Direct image content (production - bypass local storage)
+                image_content = img_info['image_content']
+                from io import BytesIO
+                pil_image = Image.open(BytesIO(image_content))
+                filename = img_info.get('filename', 'scraped_image.jpg')
+            else:
+                logger.error("No image source provided - need either local_path or image_content")
+                return None
             
             # Get image dimensions
-            pil_image = Image.open(local_path)
             width, height = pil_image.size
             
-            # Create Django file
-            filename = img_info.get('filename', local_path.name)
+            # Create Django file for S3 upload
             django_file = ContentFile(image_content, name=filename)
             
             # Determine AI category and confidence

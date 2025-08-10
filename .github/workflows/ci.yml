@@ -1,0 +1,253 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop, production-architecture-migration ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: 3.11
+  NODE_VERSION: 18
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort bandit safety
+        pip install -r django_app/requirements.txt
+        
+    - name: Run linting
+      run: |
+        flake8 django_app/src --max-line-length=120 --exclude=migrations
+        flake8 data_pipeline/src --max-line-length=120
+        flake8 rag_service/src --max-line-length=120
+        
+    - name: Check code formatting
+      run: |
+        black --check django_app/src
+        black --check data_pipeline/src
+        black --check rag_service/src
+        
+    - name: Check import sorting
+      run: |
+        isort --check-only django_app/src
+        isort --check-only data_pipeline/src
+        isort --check-only rag_service/src
+        
+    - name: Security scan
+      run: |
+        bandit -r django_app/src -ll
+        bandit -r data_pipeline/src -ll
+        bandit -r rag_service/src -ll
+        
+    - name: Dependency security check
+      run: safety check --json
+
+  test-django:
+    name: Django Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: test_portfolio
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r django_app/requirements.txt
+        
+    - name: Set up test environment
+      run: |
+        cp django_app/.env.example django_app/.env
+        echo "DATABASE_URL=postgresql://postgres:testpassword@localhost:5432/test_portfolio" >> django_app/.env
+        echo "REDIS_URL=redis://localhost:6379/0" >> django_app/.env
+        echo "DEBUG=True" >> django_app/.env
+        echo "SECRET_KEY=test-secret-key-for-ci" >> django_app/.env
+        
+    - name: Run migrations
+      working-directory: django_app/src
+      run: |
+        python manage.py migrate --no-input
+        
+    - name: Run Django tests
+      working-directory: django_app/src
+      run: |
+        python manage.py test --verbosity=2
+        
+    - name: Generate test coverage
+      working-directory: django_app/src
+      run: |
+        pip install coverage
+        coverage run --source='.' manage.py test
+        coverage report --show-missing
+        coverage xml
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./django_app/src/coverage.xml
+        flags: django
+        name: django-coverage
+
+  test-rag-service:
+    name: RAG Service Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r rag_service/requirements.txt
+        pip install pytest pytest-asyncio pytest-cov
+        
+    - name: Run RAG service tests
+      working-directory: rag_service/src
+      run: |
+        pytest --cov=. --cov-report=xml tests/ -v
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./rag_service/src/coverage.xml
+        flags: rag-service
+        name: rag-coverage
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-django, test-rag-service]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production-architecture-migration'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ secrets.DOCKER_USERNAME }}/portfolio-django
+          ${{ secrets.DOCKER_USERNAME }}/portfolio-rag
+          ${{ secrets.DOCKER_USERNAME }}/portfolio-nginx
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          
+    - name: Build and push Django image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.django
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/portfolio-django:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Build and push RAG image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.rag
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/portfolio-rag:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+    - name: Build and push Nginx image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./docker
+        file: ./docker/Dockerfile.nginx
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/portfolio-nginx:${{ github.sha }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production-architecture-migration'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ secrets.DOCKER_USERNAME }}/portfolio-django:${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'

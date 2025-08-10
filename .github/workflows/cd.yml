@@ -1,0 +1,245 @@
+name: CD Pipeline
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - completed
+    branches: [main, production-architecture-migration]
+  
+  # Manual deployment trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      enable_ab_testing:
+        description: 'Enable A/B testing'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  SSH_KEY_PATH: /tmp/deploy_key
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > ${{ env.SSH_KEY_PATH }}
+        chmod 600 ${{ env.SSH_KEY_PATH }}
+        
+    - name: Deploy to staging server
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.STAGING_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Pull latest changes
+          git fetch origin
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
+          
+          # Update environment
+          cp .env.staging .env
+          
+          # Build and deploy with minimal downtime
+          docker-compose -f docker-compose.staging.yml pull
+          docker-compose -f docker-compose.staging.yml up --build -d --remove-orphans
+          
+          # Run health checks
+          sleep 30
+          curl -f http://localhost/health/ || exit 1
+          
+          # Clean up old images
+          docker system prune -f
+        EOF
+        
+    - name: Run staging tests
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.STAGING_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Run integration tests against staging
+          docker exec portfolio_web_staging python manage.py test --tag=integration
+          
+          # Test scraping with 1 restaurant
+          docker exec portfolio_web_staging python manage.py process_michelin_csv --max-restaurants=1 --no-scraping
+        EOF
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') }}
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup SSH key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > ${{ env.SSH_KEY_PATH }}
+        chmod 600 ${{ env.SSH_KEY_PATH }}
+        
+    - name: Pre-deployment backup
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.PRODUCTION_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Backup database
+          docker exec portfolio_db_prod pg_dump -U portfolio_user portfolio_db > backup_$(date +%Y%m%d_%H%M%S).sql
+          
+          # Backup current code
+          tar -czf code_backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude='.git' .
+        EOF
+        
+    - name: Deploy to production (Blue-Green)
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.PRODUCTION_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Pull latest changes
+          git fetch origin
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
+          
+          # Update environment
+          cp .env.prod .env
+          
+          # Run migrations first (safe)
+          docker-compose -f docker-compose.prod.yml run --rm migrate
+          
+          # Blue-Green deployment
+          if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+            echo "Performing blue-green deployment..."
+            
+            # Build new containers
+            docker-compose -f docker-compose.prod.yml build
+            
+            # Start new containers alongside old ones
+            docker-compose -f docker-compose.prod.yml up -d --no-deps --scale web=2 web
+            
+            # Health check new containers
+            sleep 30
+            curl -f https://opaldecisionsciences.com/health/ || exit 1
+            
+            # Stop old containers
+            docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+          else
+            # First deployment or containers not running
+            docker-compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          fi
+          
+          # Final health check
+          sleep 30
+          curl -f https://opaldecisionsciences.com/health/ || exit 1
+          
+          # Clean up
+          docker system prune -f
+        EOF
+        
+    - name: Post-deployment validation
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.PRODUCTION_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Comprehensive health checks
+          curl -f https://opaldecisionsciences.com/health/
+          curl -f https://opaldecisionsciences.com/admin/
+          curl -f https://opaldecisionsciences.com/api/restaurants/stats/
+          
+          # Check all services are healthy
+          docker-compose -f docker-compose.prod.yml ps
+          
+          # Test database connectivity
+          docker exec portfolio_web_prod python manage.py dbshell -c "SELECT COUNT(*) FROM restaurants_restaurant;"
+        EOF
+        
+    - name: Setup A/B testing (if enabled)
+      if: ${{ github.event.inputs.enable_ab_testing == 'true' }}
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.PRODUCTION_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Enable A/B testing feature flags
+          docker exec portfolio_web_prod python manage.py shell << PYTHON
+from django.conf import settings
+from restaurants.models import FeatureFlag
+FeatureFlag.objects.update_or_create(
+    name='s3_direct_images',
+    defaults={'enabled': True, 'percentage': 50}
+)
+print("A/B testing enabled: 50% traffic to S3-direct")
+PYTHON
+        EOF
+
+  rollback:
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    if: failure()
+    environment: production
+    
+    steps:
+    - name: Setup SSH key
+      run: |
+        echo "${{ secrets.EC2_SSH_KEY }}" > ${{ env.SSH_KEY_PATH }}
+        chmod 600 ${{ env.SSH_KEY_PATH }}
+        
+    - name: Rollback to previous version
+      run: |
+        ssh -i ${{ env.SSH_KEY_PATH }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.PRODUCTION_SERVER_IP }} << 'EOF'
+          cd /home/ubuntu/portfolio_app_production
+          
+          # Get previous commit
+          PREVIOUS_COMMIT=$(git log --oneline -2 | tail -1 | cut -d' ' -f1)
+          
+          echo "Rolling back to commit: $PREVIOUS_COMMIT"
+          git checkout $PREVIOUS_COMMIT
+          
+          # Deploy previous version
+          docker-compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          
+          # Health check
+          sleep 30
+          curl -f https://opaldecisionsciences.com/health/ || exit 1
+          
+          echo "Rollback completed successfully"
+        EOF
+        
+    - name: Notify team of rollback
+      uses: 8398a7/action-slack@v3
+      with:
+        status: custom
+        custom_payload: |
+          {
+            text: "🚨 Production deployment failed and was rolled back",
+            attachments: [{
+              color: 'danger',
+              fields: [{
+                title: 'Repository',
+                value: '${{ github.repository }}',
+                short: true
+              }, {
+                title: 'Commit',
+                value: '${{ github.sha }}',
+                short: true
+              }]
+            }]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
