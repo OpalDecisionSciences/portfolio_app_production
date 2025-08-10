@@ -321,7 +321,7 @@ class DjangoSearchFilterAdapter:
         elif filters.sort_by == 'price':
             order_field = 'price' if filters.sort_order == 'asc' else '-price'
         else:
-            order_field = 'display_order'
+            order_field = 'name'  # Default to name ordering (consistent with MenuItem.Meta.ordering)
         
         queryset = queryset.order_by(order_field)
         
