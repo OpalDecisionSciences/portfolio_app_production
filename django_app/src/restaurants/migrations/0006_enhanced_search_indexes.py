@@ -27,8 +27,7 @@ class Migration(migrations.Migration):
             "to_tsvector('english', name || ' ' || COALESCE(description, '') || ' ' || "
             "COALESCE(cuisine_type, '') || ' ' || city || ' ' || country));",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_search_vector;",
-            atomic=False
+            "DROP INDEX IF EXISTS restaurants_restaurant_search_vector;"
         ),
         
         # Trigram indexes for fuzzy search (idempotent)
@@ -36,16 +35,14 @@ class Migration(migrations.Migration):
             "CREATE INDEX IF NOT EXISTS restaurants_restaurant_name_trigram "
             "ON restaurants_restaurant USING gin(name gin_trgm_ops);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_name_trigram;",
-            atomic=False
+            "DROP INDEX IF EXISTS restaurants_restaurant_name_trigram;"
         ),
         
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS restaurants_restaurant_city_trigram "
             "ON restaurants_restaurant USING gin(city gin_trgm_ops);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_city_trigram;",
-            atomic=False
+            "DROP INDEX IF EXISTS restaurants_restaurant_city_trigram;"
         ),
         
         # Composite indexes for common query patterns (idempotent)

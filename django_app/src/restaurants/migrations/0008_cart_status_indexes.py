@@ -23,8 +23,7 @@ class Migration(migrations.Migration):
             "CREATE INDEX IF NOT EXISTS restaurants_cart_user_restaurant_status_idx "
             "ON restaurants_usercart (user_id, restaurant_id, cart_status, updated_at DESC);",
             
-            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_status_idx;",
-            atomic=False
+            "DROP INDEX IF EXISTS restaurants_cart_user_restaurant_status_idx;"
         ),
         
         # Additional index for cart status queries
@@ -32,7 +31,6 @@ class Migration(migrations.Migration):
             "CREATE INDEX IF NOT EXISTS restaurants_usercart_cart_status_idx "
             "ON restaurants_usercart (cart_status, is_active);",
             
-            "DROP INDEX IF EXISTS restaurants_usercart_cart_status_idx;",
-            atomic=False
+            "DROP INDEX IF EXISTS restaurants_usercart_cart_status_idx;"
         ),
     ]

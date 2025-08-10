@@ -29,6 +29,9 @@ def reverse_system_user(apps, schema_editor):
     pass
 
 class Migration(migrations.Migration):
+    # Set atomic=False for index creation operations
+    atomic = False
+    
     dependencies = [
         ('restaurants', '0008_cart_status_indexes'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
@@ -74,15 +77,13 @@ class Migration(migrations.Migration):
             "CREATE INDEX IF NOT EXISTS restaurants_restaurant_is_active_created_at_idx "
             "ON restaurants_restaurant (is_active, created_at);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_is_active_created_at_idx;",
-            atomic=False  # Allow this to run outside transaction for PostgreSQL
+            "DROP INDEX IF EXISTS restaurants_restaurant_is_active_created_at_idx;"
         ),
         
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS restaurants_restaurant_deactivated_at_idx "
             "ON restaurants_restaurant (deactivated_at);",
             
-            "DROP INDEX IF EXISTS restaurants_restaurant_deactivated_at_idx;",
-            atomic=False  # Allow this to run outside transaction for PostgreSQL
+            "DROP INDEX IF EXISTS restaurants_restaurant_deactivated_at_idx;"
         ),
     ]
