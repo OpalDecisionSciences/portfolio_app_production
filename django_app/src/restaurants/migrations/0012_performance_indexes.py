@@ -58,14 +58,14 @@ class Migration(migrations.Migration):
         
         # Menu and ordering indexes
         migrations.RunSQL(
-            "CREATE INDEX IF NOT EXISTS idx_menuitem_section_order "
-            "ON restaurants_menuitem (section_id, display_order) WHERE is_active = true;",
-            "DROP INDEX IF EXISTS idx_menuitem_section_order;"
+            "CREATE INDEX IF NOT EXISTS idx_menuitem_section "
+            "ON restaurants_menuitem (section_id) WHERE is_active = true;",
+            "DROP INDEX IF EXISTS idx_menuitem_section;"
         ),
         
         migrations.RunSQL(
             "CREATE INDEX IF NOT EXISTS idx_menusection_restaurant_order "
-            "ON restaurants_menusection (restaurant_id, display_order) WHERE is_active = true;",
+            "ON restaurants_menusection (restaurant_id, \"order\") WHERE is_active = true;",
             "DROP INDEX IF EXISTS idx_menusection_restaurant_order;"
         ),
         
