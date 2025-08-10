@@ -8,6 +8,7 @@ class Migration(migrations.Migration):
     
     dependencies = [
         ('restaurants', '0011_add_error_tracking_fields'),
+        ('restaurants', '0009_fix_basemodel_soft_delete_fields'),
     ]
 
     operations = [
