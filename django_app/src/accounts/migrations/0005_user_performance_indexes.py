@@ -3,26 +3,24 @@
 
 from django.db import migrations, connection
 
-def column_exists(table_name, column_name):
-    """Check if a column exists in a table"""
-    with connection.cursor() as cursor:
+def create_index_if_column_exists(apps, schema_editor, table_name, index_name, index_sql, drop_sql):
+    """Create index only if the required columns exist"""
+    # Check if created_at column exists using schema_editor connection
+    with schema_editor.connection.cursor() as cursor:
         cursor.execute("""
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.columns 
                 WHERE table_name = %s AND column_name = %s
             );
-        """, [table_name, column_name])
-        return cursor.fetchone()[0]
-
-def create_index_if_column_exists(apps, schema_editor, table_name, index_name, index_sql, drop_sql):
-    """Create index only if the required columns exist"""
-    # Check if created_at column exists (main column we're having issues with)
-    if 'created_at' in index_sql and not column_exists(table_name, 'created_at'):
-        print(f"Skipping index {index_name} - created_at column does not exist in {table_name}")
-        return
-    
-    # Execute the index creation
-    with schema_editor.connection.cursor() as cursor:
+        """, [table_name, 'created_at'])
+        
+        column_exists = cursor.fetchone()[0]
+        
+        if 'created_at' in index_sql and not column_exists:
+            print(f"Skipping index {index_name} - created_at column does not exist in {table_name}")
+            return
+        
+        # Execute the index creation
         cursor.execute(index_sql)
 
 class Migration(migrations.Migration):
