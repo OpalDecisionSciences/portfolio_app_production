@@ -5,8 +5,8 @@ from django.contrib.gis.geos import Point
 from django.db import migrations
 
 
-def populate_location_field(apps, schema_editor):
-    """Populate the new location field from existing lat/lng values."""
+def populate_geolocation_field(apps, schema_editor):
+    """Populate the new geolocation field from existing lat/lng values."""
     Restaurant = apps.get_model('restaurants', 'Restaurant')
     
     for restaurant in Restaurant.objects.filter(
@@ -15,24 +15,24 @@ def populate_location_field(apps, schema_editor):
     ):
         try:
             # Create Point from existing coordinates
-            restaurant.location = Point(
+            restaurant.geolocation = Point(
                 float(restaurant.longitude), 
                 float(restaurant.latitude),
                 srid=4326  # WGS84 coordinate system
             )
-            restaurant.save(update_fields=['location'])
+            restaurant.save(update_fields=['geolocation'])
         except Exception as e:
-            print(f"Failed to update location for {restaurant.name}: {e}")
+            print(f"Failed to update geolocation for {restaurant.name}: {e}")
 
 
-def reverse_location_field(apps, schema_editor):
+def reverse_geolocation_field(apps, schema_editor):
     """Reverse migration - extract lat/lng from Point."""
     Restaurant = apps.get_model('restaurants', 'Restaurant')
     
-    for restaurant in Restaurant.objects.filter(location__isnull=False):
+    for restaurant in Restaurant.objects.filter(geolocation__isnull=False):
         try:
-            restaurant.longitude = restaurant.location.x
-            restaurant.latitude = restaurant.location.y
+            restaurant.longitude = restaurant.geolocation.x
+            restaurant.latitude = restaurant.geolocation.y
             restaurant.save(update_fields=['longitude', 'latitude'])
         except Exception as e:
             print(f"Failed to extract coordinates for {restaurant.name}: {e}")
@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
         # Add the PointField for optimized spatial queries
         migrations.AddField(
             model_name='restaurant',
-            name='location',
+            name='geolocation',
             field=gis_models.PointField(
                 srid=4326,  # WGS84 coordinate system
                 null=True,
@@ -60,13 +60,13 @@ class Migration(migrations.Migration):
         
         # Populate the new field from existing data
         migrations.RunPython(
-            populate_location_field,
-            reverse_location_field
+            populate_geolocation_field,
+            reverse_geolocation_field
         ),
         
         # Add spatial index for optimized nearby queries
         migrations.AddIndex(
             model_name='restaurant',
-            index=gis_models.Index(fields=['location'], name='location_spatial_idx'),
+            index=gis_models.Index(fields=['geolocation'], name='geolocation_spatial_idx'),
         ),
     ]

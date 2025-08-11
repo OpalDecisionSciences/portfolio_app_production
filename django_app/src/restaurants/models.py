@@ -43,8 +43,8 @@ class Restaurant(BaseModel):
     address = models.TextField()
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    location = gis_models.PointField(srid=4326, null=True, blank=True, spatial_index=True,
-                                     help_text="Geographic location as Point for optimized spatial queries")
+    geolocation = gis_models.PointField(srid=4326, null=True, blank=True, spatial_index=True,
+                                        help_text="Geographic location as Point for optimized spatial queries")
     
     # Contact
     phone = models.CharField(max_length=20, blank=True)
@@ -151,9 +151,9 @@ class Restaurant(BaseModel):
         if not self.slug:
             self.slug = slugify(f"{self.name}-{self.city}")
         
-        # Auto-populate location Point from lat/lng
-        if self.latitude and self.longitude and not self.location:
-            self.location = Point(float(self.longitude), float(self.latitude), srid=4326)
+        # Auto-populate geolocation Point from lat/lng
+        if self.latitude and self.longitude and not self.geolocation:
+            self.geolocation = Point(float(self.longitude), float(self.latitude), srid=4326)
         
         super().save(*args, **kwargs)
     

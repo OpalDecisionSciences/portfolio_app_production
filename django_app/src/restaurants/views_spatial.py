@@ -41,12 +41,12 @@ def find_nearby_restaurants(request):
         
         # Use PostGIS spatial query - MUCH faster than Haversine
         nearby_restaurants = Restaurant.objects.filter(
-            location__isnull=False,
+            geolocation__isnull=False,
             is_active=True
         ).filter(
-            location__distance_lte=(user_location, D(km=radius_km))
+            geolocation__distance_lte=(user_location, D(km=radius_km))
         ).annotate(
-            distance_km=Distance('location', user_location)
+            distance_km=Distance('geolocation', user_location)
         ).order_by('distance_km')[:limit]
         
         # Format results
@@ -119,7 +119,7 @@ def get_restaurants_by_region(request):
         
         # Query restaurants within bounding box
         queryset = Restaurant.objects.filter(
-            location__within=bbox,
+            geolocation__within=bbox,
             is_active=True
         )
         
@@ -195,7 +195,7 @@ def get_nearest_restaurant(request):
         
         # Build query
         queryset = Restaurant.objects.filter(
-            location__isnull=False,
+            geolocation__isnull=False,
             is_active=True
         )
         
@@ -204,7 +204,7 @@ def get_nearest_restaurant(request):
         
         # Find nearest restaurant
         nearest = queryset.annotate(
-            distance_km=Distance('location', user_location)
+            distance_km=Distance('geolocation', user_location)
         ).order_by('distance_km').first()
         
         if nearest:
@@ -259,9 +259,9 @@ def get_restaurant_clusters(request):
         
         # Get extent of all restaurants
         extent = Restaurant.objects.filter(
-            location__isnull=False
+            geolocation__isnull=False
         ).aggregate(
-            bbox=Extent('location')
+            bbox=Extent('geolocation')
         )['bbox']
         
         if not extent:
@@ -278,7 +278,7 @@ def get_restaurant_clusters(request):
         
         # This is a simplified version - for production, use proper clustering
         restaurants = Restaurant.objects.filter(
-            location__isnull=False,
+            geolocation__isnull=False,
             is_active=True
         ).values('latitude', 'longitude', 'michelin_stars')
         

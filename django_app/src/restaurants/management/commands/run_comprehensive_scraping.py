@@ -372,7 +372,7 @@ class Command(BaseCommand):
                 'facilities': data.get('FacilitiesAndServices', ''),
                 'longitude': float(longitude) if longitude else None,
                 'latitude': float(latitude) if latitude else None,
-                'location': Point(float(longitude), float(latitude), srid=4326) if longitude and latitude else None,
+                'geolocation': Point(float(longitude), float(latitude), srid=4326) if longitude and latitude else None,
                 'is_active': True
             }
         )
