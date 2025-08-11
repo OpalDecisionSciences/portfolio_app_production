@@ -200,7 +200,7 @@ def get_database_config() -> dict:
     """
     return {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',  # Django's native PostgreSQL backend with psycopg3
+            'ENGINE': 'django.contrib.gis.db.backends.postgis',  # PostGIS backend for GeoDjango support
             'NAME': get_env_variable('DATABASE_NAME'),
             'USER': get_env_variable('DATABASE_USER'),
             'PASSWORD': get_env_variable('DATABASE_PASSWORD'),
