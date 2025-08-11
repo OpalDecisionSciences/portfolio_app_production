@@ -1,8 +1,10 @@
 
 services:
-  # PostgreSQL database with pgvector extension
+  # PostgreSQL database with pgvector + PostGIS extensions
   db:
-    image: pgvector/pgvector:pg15
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile.postgres-custom
     container_name: portfolio_db_prod
     env_file: 
       - .env
