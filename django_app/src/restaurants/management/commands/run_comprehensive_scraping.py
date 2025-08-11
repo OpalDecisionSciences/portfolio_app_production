@@ -92,7 +92,16 @@ class Command(BaseCommand):
             logger = logging.getLogger(__name__)
             
             # Initialize token manager for production
-            project_dir = Path(settings.BASE_DIR).parent.parent
+            # In Docker, we want to use /app as the base directory
+            if os.path.exists('/app'):
+                project_dir = Path('/app')
+            else:
+                project_dir = Path(settings.BASE_DIR).parent.parent
+            
+            # Ensure state directory exists with proper permissions
+            state_dir = project_dir / 'state'
+            state_dir.mkdir(parents=True, exist_ok=True)
+            
             init_token_manager(project_dir)
             
             # Check current token usage and date

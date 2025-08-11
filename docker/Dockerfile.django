@@ -46,7 +46,7 @@ COPY ./data_pipeline /data_pipeline/
 ENV PYTHONPATH="/app:/shared/src:/data_pipeline/src:$PYTHONPATH"
 
 # Create necessary directories and set permissions
-RUN mkdir -p /app/media /app/staticfiles /app/logs \
+RUN mkdir -p /app/media /app/staticfiles /app/logs /app/state /app/output \
     && chown -R appuser:appuser /app /shared /data_pipeline
 
 # Copy unified entrypoint script
