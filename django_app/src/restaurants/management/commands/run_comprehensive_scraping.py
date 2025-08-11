@@ -347,9 +347,10 @@ class Command(BaseCommand):
         from restaurants.models import Restaurant
         from django.contrib.gis.geos import Point
         
-        # Convert price format
-        price_mapping = {'€€€€': 4, '$$$': 3, '€€€': 3, '$$': 2, '€€': 2, '$': 1, '€': 1}
-        price_level = price_mapping.get(data.get('Price', ''), 0)
+        # Convert price format to match Restaurant model choices
+        price_mapping = {'€€€€': '$$$$', '€€€': '$$$', '€€': '$$', '€': '$', 
+                       '$$$$': '$$$$', '$$$': '$$$', '$$': '$$', '$': '$'}
+        price_range = price_mapping.get(data.get('Price', ''), '')
         
         # Extract coordinates
         longitude = data.get('Longitude', 0) or 0
@@ -365,10 +366,10 @@ class Command(BaseCommand):
                 'country': data.get('Location', '').split(', ')[-1] if data.get('Location') else '',
                 'city': data.get('Location', '').split(', ')[0] if data.get('Location') else '',
                 'address': data.get('Address', ''),
-                'phone_number': data.get('PhoneNumber', ''),
-                'price_level': price_level,
+                'phone': data.get('PhoneNumber', ''),  # Fixed: phone not phone_number
+                'price_range': price_range,  # Fixed: price_range not price_level
                 'michelin_stars': data.get('Award', '').count('Star'),
-                'green_star': data.get('GreenStar', '0') == '1',
+                'has_green_star': data.get('GreenStar', '0') == '1',  # Fixed: has_green_star field added
                 'facilities': data.get('FacilitiesAndServices', ''),
                 'longitude': float(longitude) if longitude else None,
                 'latitude': float(latitude) if latitude else None,

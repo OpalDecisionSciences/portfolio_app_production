@@ -42,7 +42,8 @@ def update_restaurant_embeddings(restaurant_id):
         {restaurant.city}, {restaurant.country}
         Cuisine: {restaurant.cuisine_type or ''}
         Michelin Stars: {restaurant.michelin_stars}
-        Price Range: {restaurant.get_price_level_display() or ''}
+        {f'Green Star: Awarded for sustainability' if restaurant.has_green_star else ''}
+        Price Range: {restaurant.get_price_range_display() or ''}
         """
         
         # Add menu content if available
@@ -62,7 +63,7 @@ def update_restaurant_embeddings(restaurant_id):
             'country': restaurant.country,
             'cuisine_type': restaurant.cuisine_type,
             'michelin_stars': restaurant.michelin_stars,
-            'price_level': restaurant.price_level,
+            'price_range': restaurant.price_range,
         }
         
         response = requests.post(

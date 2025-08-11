@@ -218,8 +218,8 @@
 												{% endif %}
 												
 												<div class="restaurant-features">
-													{% if restaurant.price_level %}
-														<span class="feature-badge">{{ restaurant.get_price_level_display }}</span>
+													{% if restaurant.price_range %}
+														<span class="feature-badge">{{ restaurant.get_price_range_display }}</span>
 													{% endif %}
 													{% if restaurant.is_featured %}
 														<span class="feature-badge">Featured</span>

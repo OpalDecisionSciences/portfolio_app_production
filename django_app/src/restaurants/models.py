@@ -57,6 +57,11 @@ class Restaurant(BaseModel):
         validators=[MinValueValidator(0), MaxValueValidator(3)]
     )
     michelin_guide_year = models.IntegerField(null=True, blank=True)
+    has_green_star = models.BooleanField(
+        default=False, 
+        db_index=True, 
+        help_text="Michelin Green Star for sustainability"
+    )
     
     # Rating and Reviews
     rating = models.DecimalField(

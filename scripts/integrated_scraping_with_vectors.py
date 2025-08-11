@@ -71,6 +71,9 @@ class IntegratedVectorScraper:
             stars_text = f"{restaurant.michelin_stars} Michelin star{'s' if restaurant.michelin_stars > 1 else ''}"
             content_parts.append(f"It has earned {stars_text}.")
         
+        if restaurant.has_green_star:
+            content_parts.append("A Michelin Green Star was awarded for sustainability.")
+        
         if restaurant.cuisine_type and restaurant.cuisine_type.strip():
             content_parts.append(f"The cuisine type is {restaurant.cuisine_type}.")
         
