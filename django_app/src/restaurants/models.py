@@ -85,6 +85,7 @@ class Restaurant(BaseModel):
         ],
         blank=True
     )
+    facilities = models.TextField(blank=True, help_text="Facilities and services")
     
     # Atmosphere
     atmosphere = models.CharField(max_length=100, blank=True)
