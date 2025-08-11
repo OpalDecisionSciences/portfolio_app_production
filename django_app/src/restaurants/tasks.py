@@ -11,7 +11,7 @@ from pathlib import Path
 import logging
 import json
 
-from config import setup_portfolio_paths
+from path_manager import setup_portfolio_paths
 setup_portfolio_paths()
 from scrapers.image_scraper import RestaurantImageScraper
 from services.image_ai_service import get_image_ai_service
