@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including GDAL for GeoDjango
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         postgresql-client \
@@ -22,11 +22,18 @@ RUN apt-get update \
         ca-certificates \
         chromium \
         chromium-driver \
+        gdal-bin \
+        libgdal-dev \
+        python3-gdal \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
+# Set GDAL environment variables for GeoDjango
+ENV GDAL_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/libgdal.so
+ENV GEOS_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/libgeos_c.so
 
 # Create app user for security (production best practice)
 # Use consistent UID/GID (1000) to match common host user permissions

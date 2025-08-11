@@ -3,6 +3,8 @@ Restaurant models for the portfolio application.
 Zero-CASCADE, Zero-NULL architecture implementation.
 """
 from django.db import models, transaction
+from django.contrib.gis.db import models as gis_models
+from django.contrib.gis.geos import Point
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.urls import reverse
@@ -41,6 +43,8 @@ class Restaurant(BaseModel):
     address = models.TextField()
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    location = gis_models.PointField(srid=4326, null=True, blank=True, spatial_index=True,
+                                     help_text="Geographic location as Point for optimized spatial queries")
     
     # Contact
     phone = models.CharField(max_length=20, blank=True)
@@ -146,6 +150,11 @@ class Restaurant(BaseModel):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(f"{self.name}-{self.city}")
+        
+        # Auto-populate location Point from lat/lng
+        if self.latitude and self.longitude and not self.location:
+            self.location = Point(float(self.longitude), float(self.latitude), srid=4326)
+        
         super().save(*args, **kwargs)
     
     def get_timezone_display(self):
