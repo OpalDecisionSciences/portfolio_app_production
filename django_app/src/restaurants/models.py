@@ -995,6 +995,110 @@ class RestaurantImage(models.Model):
         return f"{self.restaurant.name} - {self.get_image_type_display()}"
     
     @property
+    def get_image_url(self):
+        """
+        Smart URL getter that prioritizes S3 URL over other sources.
+        
+        Priority order:
+        1. S3 URL (primary cloud storage)
+        2. Source URL (original scraped URL)
+        3. Local image file URL (Django ImageField)
+        
+        Returns:
+            str: The best available image URL or None
+        """
+        # Priority 1: S3 URL (if available)
+        if hasattr(self, 's3_url') and self.s3_url:
+            return self.s3_url
+        
+        # Priority 2: Source URL (original scraped URL)
+        if self.source_url:
+            return self.source_url
+            
+        # Priority 3: Local Django ImageField URL
+        if self.image:
+            try:
+                return self.image.url
+            except (ValueError, AttributeError):
+                # Handle cases where image file is missing
+                pass
+        
+        # No image URL available
+        return None
+    
+    @property
+    def is_s3_stored(self):
+        """Check if this image is stored in S3."""
+        return hasattr(self, 's3_url') and bool(self.s3_url)
+    
+    def migrate_to_s3(self):
+        """
+        Migrate this image to S3 storage.
+        
+        Returns:
+            dict: Migration result with status and S3 URL
+        """
+        try:
+            from services.s3_service import get_s3_service
+            
+            # Skip if already in S3
+            if self.is_s3_stored:
+                return {
+                    'status': 'already_migrated',
+                    's3_url': self.s3_url,
+                    'message': 'Image already stored in S3'
+                }
+            
+            s3_service = get_s3_service()
+            
+            # Determine source for migration
+            if self.image:
+                # Upload from local file
+                result = s3_service.upload_from_local(
+                    local_path=self.image.path,
+                    content_type='restaurant_images',
+                    identifier=self.restaurant.name
+                )
+            elif self.source_url:
+                # Upload from source URL
+                result = s3_service.upload_from_url(
+                    image_url=self.source_url,
+                    content_type='restaurant_images',
+                    identifier=self.restaurant.name
+                )
+            else:
+                return {
+                    'status': 'failed',
+                    'message': 'No source available for migration'
+                }
+            
+            if result:
+                # Update model with S3 information
+                self.s3_url = result['s3_url']
+                self.s3_key = result['s3_key']
+                if not self.content_hash:
+                    self.content_hash = result['content_hash']
+                self.save()
+                
+                return {
+                    'status': 'migrated',
+                    's3_url': self.s3_url,
+                    's3_key': self.s3_key,
+                    'message': 'Successfully migrated to S3'
+                }
+            else:
+                return {
+                    'status': 'failed',
+                    'message': 'S3 upload failed'
+                }
+                
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Migration error: {str(e)}'
+            }
+    
+    @property
     def is_scenery_ambiance(self):
         """Check if this image is categorized as scenery/ambiance."""
         return self.ai_category == 'scenery_ambiance'

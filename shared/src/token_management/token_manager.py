@@ -285,3 +285,61 @@ def get_token_usage_summary():
         "usage_by_model": state["used_tokens_by_model"],
         "last_completed_row": state.get("last_completed_row", -1)
     }
+
+def log_s3_operation(operation_type: str, s3_key: str, status: str, metadata: dict = None):
+    """
+    Log S3 operations for image processing tracking.
+    
+    Args:
+        operation_type: Type of operation (upload, download, delete, migrate)
+        s3_key: S3 key involved in the operation
+        status: Operation status (success, failed, error)
+        metadata: Additional metadata (file_size, content_type, etc.)
+    """
+    try:
+        import json
+        from datetime import datetime
+        
+        log_data = {
+            'timestamp': datetime.now().isoformat(),
+            'operation_type': operation_type,
+            's3_key': s3_key,
+            'status': status,
+            'metadata': metadata or {}
+        }
+        
+        # Log to the configured logger
+        logging.info(f"S3_OPERATION | {operation_type.upper()} | {status.upper()} | {s3_key}")
+        
+        # If we have S3 logging configured, store detailed operation log
+        log_storage = os.getenv('LOG_STORAGE', 'LOCAL')
+        if log_storage == 'S3':
+            try:
+                from botocore.exceptions import ClientError
+                import boto3
+                
+                log_bucket = os.getenv('LOG_S3_BUCKET', 'portfolio-logs')
+                operation_log_key = f"logs/s3-operations/{datetime.now().strftime('%Y/%m/%d')}/operations.jsonl"
+                log_entry = json.dumps(log_data) + '\n'
+                
+                s3_client = boto3.client('s3')
+                
+                # Append to daily S3 operations log
+                try:
+                    response = s3_client.get_object(Bucket=log_bucket, Key=operation_log_key)
+                    existing_log = response['Body'].read().decode('utf-8')
+                    full_log = existing_log + log_entry
+                except ClientError:
+                    full_log = log_entry
+                
+                s3_client.put_object(
+                    Bucket=log_bucket,
+                    Key=operation_log_key,
+                    Body=full_log.encode('utf-8'),
+                    ContentType='application/x-ndjson'
+                )
+            except Exception as e:
+                logging.warning(f"Failed to log S3 operation to S3: {e}")
+                
+    except Exception as e:
+        logging.error(f"Failed to log S3 operation: {e}")

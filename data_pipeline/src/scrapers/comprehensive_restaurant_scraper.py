@@ -39,9 +39,9 @@ from asgiref.sync import sync_to_async
 from restaurants.models import Restaurant, RestaurantImage
 
 # Import scraping components
-from enhanced_restaurant_scraper import EnhancedRestaurantScraper
-from image_scraper import RestaurantImageScraper
-import templates
+from scrapers.enhanced_restaurant_scraper import EnhancedRestaurantScraper
+from scrapers.image_scraper import RestaurantImageScraper
+import scrapers.templates as templates
 
 # Setup portfolio paths for dependencies
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "shared" / "src"))

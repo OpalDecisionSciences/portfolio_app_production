@@ -20,7 +20,7 @@ import django
 django.setup()
 
 from restaurants.models import Restaurant
-from enhanced_restaurant_scraper import EnhancedRestaurantScraper
+from scrapers.enhanced_restaurant_scraper import EnhancedRestaurantScraper
 import logging
 
 # Set up logging

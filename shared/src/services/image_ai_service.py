@@ -50,17 +50,28 @@ class ImageAIService:
     ]
     
     def __init__(self):
-        """Initialize the ImageAI service with OpenAI client."""
+        """Initialize the ImageAI service with OpenAI client and S3 support."""
         self.openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.max_retries = 3
         self.retry_delay = 2
         
-    def categorize_image_with_ai(self, image_url: str) -> Dict:
+        # S3 Configuration for image processing
+        try:
+            from services.s3_service import get_s3_service
+            self.s3_service = get_s3_service()
+            self.s3_enabled = True
+            logger.info("ImageAI service initialized with S3 support")
+        except ImportError:
+            logger.warning("S3 service not available, falling back to URL/local processing only")
+            self.s3_service = None
+            self.s3_enabled = False
+        
+    def categorize_image_with_ai(self, image_identifier: str) -> Dict:
         """
         Categorize a restaurant image using OpenAI Vision API.
         
         Args:
-            image_url: URL or local path to the image
+            image_identifier: S3 URL, S3 key, HTTP URL, or local path to the image
             
         Returns:
             dict: {
@@ -72,15 +83,33 @@ class ImageAIService:
             }
         """
         try:
-            # Validate image URL/path
-            if not image_url:
-                return self._get_default_result("No image URL provided")
+            # Validate image identifier
+            if not image_identifier:
+                return self._get_default_result("No image identifier provided")
                 
-            # Process image based on type (URL vs local path)
-            if image_url.startswith(('http://', 'https://')):
-                image_data = self._download_image(image_url)
+            # Process image based on type (S3 URL, S3 key, HTTP URL, or local path)
+            image_data = None
+            
+            if self.s3_enabled and self._is_s3_url(image_identifier):
+                # S3 URL (https://bucket.s3.region.amazonaws.com/key)
+                s3_key = self._extract_s3_key_from_url(image_identifier)
+                image_data = self._load_s3_image(s3_key)
+                logger.info(f"Processing S3 URL: {image_identifier}")
+                
+            elif self.s3_enabled and self._is_s3_key(image_identifier):
+                # S3 key (restaurant-images/name/file.jpg)
+                image_data = self._load_s3_image(image_identifier)
+                logger.info(f"Processing S3 key: {image_identifier}")
+                
+            elif image_identifier.startswith(('http://', 'https://')):
+                # HTTP/HTTPS URL
+                image_data = self._download_image(image_identifier)
+                logger.info(f"Processing HTTP URL: {image_identifier}")
+                
             else:
-                image_data = self._load_local_image(image_url)
+                # Local path
+                image_data = self._load_local_image(image_identifier)
+                logger.info(f"Processing local path: {image_identifier}")
                 
             if not image_data:
                 return self._get_default_result("Failed to load image")
@@ -92,7 +121,7 @@ class ImageAIService:
             return self._normalize_ai_result(ai_result)
             
         except Exception as e:
-            logger.error(f"AI categorization failed for {image_url}: {str(e)}")
+            logger.error(f"AI categorization failed for {image_identifier}: {str(e)}")
             return self._get_default_result(f"Error: {str(e)}")
     
     def categorize_multiple_images(self, image_urls: List[str]) -> List[Dict]:
@@ -128,6 +157,51 @@ class ImageAIService:
                     **self._get_default_result(f"Processing error: {str(e)}")
                 })
                 
+        return results
+    
+    def categorize_s3_images_batch(self, s3_keys: List[str], max_workers: int = 3) -> List[Dict]:
+        """
+        Batch categorize multiple S3 images with parallel processing.
+        
+        Args:
+            s3_keys: List of S3 keys to process
+            max_workers: Number of parallel workers
+            
+        Returns:
+            List[dict]: Results for each S3 image
+        """
+        if not self.s3_enabled:
+            logger.error("S3 batch processing requested but S3 not available")
+            return [self._get_default_result("S3 not available") for _ in s3_keys]
+        
+        results = []
+        
+        # Process in smaller batches to avoid rate limits
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_key = {
+                executor.submit(self.categorize_image_with_ai, key): key 
+                for key in s3_keys
+            }
+            
+            for future in future_to_key:
+                s3_key = future_to_key[future]
+                try:
+                    result = future.result(timeout=60)
+                    result['s3_key'] = s3_key
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"Batch processing failed for {s3_key}: {e}")
+                    error_result = self._get_default_result(f"Batch error: {str(e)}")
+                    error_result['s3_key'] = s3_key
+                    results.append(error_result)
+                
+                # Rate limiting between requests
+                import time
+                time.sleep(0.5)
+        
+        logger.info(f"Batch processed {len(results)} S3 images")
         return results
     
     def get_category_suggestions(self, description: str) -> List[str]:
@@ -246,6 +320,56 @@ class ImageAIService:
         except Exception as e:
             logger.error(f"Failed to load local image {image_path}: {str(e)}")
             return None
+    
+    def _load_s3_image(self, s3_key: str) -> Optional[bytes]:
+        """Load image from S3."""
+        try:
+            if not self.s3_enabled:
+                logger.error("S3 not available but S3 image requested")
+                return None
+                
+            image_data = self.s3_service.download_from_s3(s3_key)
+            if image_data:
+                logger.debug(f"Successfully loaded S3 image: {s3_key}")
+                return image_data
+            else:
+                logger.error(f"Failed to download S3 image: {s3_key}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to load S3 image {s3_key}: {str(e)}")
+            return None
+    
+    def _is_s3_url(self, url: str) -> bool:
+        """Check if URL is an S3 URL."""
+        if not self.s3_enabled:
+            return False
+        return (url.startswith('https://') and 
+                '.s3.' in url and 
+                '.amazonaws.com/' in url)
+    
+    def _is_s3_key(self, identifier: str) -> bool:
+        """Check if identifier is an S3 key (not a URL or local path)."""
+        if not self.s3_enabled:
+            return False
+        # S3 keys don't start with http/https and contain forward slashes
+        return (not identifier.startswith(('http://', 'https://')) and 
+                not identifier.startswith('/') and 
+                '/' in identifier and
+                any(identifier.startswith(path) for path in self.s3_service.base_paths.values()))
+    
+    def _extract_s3_key_from_url(self, s3_url: str) -> str:
+        """Extract S3 key from S3 URL."""
+        # URL format: https://bucket.s3.region.amazonaws.com/key/path/file.jpg
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(s3_url)
+            # Remove leading slash from path
+            s3_key = parsed.path.lstrip('/')
+            return s3_key
+        except Exception as e:
+            logger.error(f"Failed to extract S3 key from URL {s3_url}: {e}")
+            return ""
     
     def _analyze_image_with_openai(self, image_data: bytes) -> Dict:
         """Analyze image using OpenAI Vision API."""

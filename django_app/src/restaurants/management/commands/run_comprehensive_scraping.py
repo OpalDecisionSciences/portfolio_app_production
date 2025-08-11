@@ -23,9 +23,13 @@ from datetime import datetime
 from django.core.management.base import BaseCommand, CommandError
 from django.conf import settings
 
-# Setup portfolio paths
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "data_pipeline" / "src"))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "shared" / "src"))
+# Setup portfolio paths - need to add parent paths for imports
+base_path = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+sys.path.insert(0, str(base_path / "data_pipeline" / "src"))
+sys.path.insert(0, str(base_path / "shared" / "src"))
+
+# Setup Django environment for scrapers
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'portfolio_project.settings')
 
 class Command(BaseCommand):
     help = 'Run comprehensive Michelin restaurant scraping with automatic token management and resume'
