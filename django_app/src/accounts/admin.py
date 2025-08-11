@@ -54,14 +54,14 @@ class UserFavoriteRestaurantAdmin(admin.ModelAdmin):
     """
     list_display = [
         'user', 'restaurant', 'category', 'personal_rating', 
-        'visit_date', 'added_at'
+        'visit_date', 'created_at'
     ]
-    list_filter = ['category', 'personal_rating', 'added_at']
+    list_filter = ['category', 'personal_rating', 'created_at']
     search_fields = [
         'user__email', 'user__first_name', 'user__last_name',
         'restaurant__name', 'restaurant__city'
     ]
-    date_hierarchy = 'added_at'
+    date_hierarchy = 'created_at'
     raw_id_fields = ['user', 'restaurant']
     
     fieldsets = (
@@ -72,12 +72,12 @@ class UserFavoriteRestaurantAdmin(admin.ModelAdmin):
             'fields': ('personal_rating', 'notes', 'visit_date', 'recommended_dishes')
         }),
         ('Metadata', {
-            'fields': ('added_at', 'updated_at'),
+            'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
     
-    readonly_fields = ['added_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at']
 
 
 @admin.register(UserChatHistory)

@@ -180,13 +180,13 @@ class UserFavoriteRestaurant(BaseModel):
         help_text="List of recommended dishes"
     )
     
-    # Metadata
-    added_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    # Metadata inherited from BaseModel:
+    # created_at = models.DateTimeField(auto_now_add=True)  # From BaseModel
+    # updated_at = models.DateTimeField(auto_now=True)      # From BaseModel
     
     class Meta:
         unique_together = ['user', 'restaurant']
-        ordering = ['-added_at']
+        ordering = ['-created_at']
         verbose_name = 'Favorite Restaurant'
         verbose_name_plural = 'Favorite Restaurants'
     

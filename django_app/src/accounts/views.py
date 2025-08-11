@@ -160,7 +160,7 @@ def favorites_view(request):
     """
     favorites = UserFavoriteRestaurant.objects.filter(
         user=request.user
-    ).select_related('restaurant').order_by('-added_at')
+    ).select_related('restaurant').order_by('-created_at')
     
     # Group favorites by category
     favorites_by_category = {}
