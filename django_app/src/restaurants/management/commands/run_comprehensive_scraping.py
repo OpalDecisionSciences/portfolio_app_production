@@ -35,10 +35,18 @@ class Command(BaseCommand):
     help = 'Run comprehensive Michelin restaurant scraping with automatic token management and resume'
 
     def add_arguments(self, parser):
+        # Determine default CSV path based on environment
+        if os.path.exists('/app'):
+            # Docker environment
+            default_csv = '/data_pipeline/src/ingestion/michelin_my_maps.csv'
+        else:
+            # Local development
+            default_csv = '/Users/iamai/projects/portfolio_app_production/data_pipeline/src/ingestion/michelin_my_maps.csv'
+        
         parser.add_argument(
             '--csv-path',
             type=str,
-            default='/Users/iamai/projects/portfolio_app_production/data_pipeline/src/ingestion/michelin_my_maps.csv',
+            default=default_csv,
             help='Path to Michelin CSV file'
         )
         
